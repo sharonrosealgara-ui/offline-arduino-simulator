@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "components": [
+    { "id": "uno1", "kind": "uno-r3", "x": 100, "y": 340, "rotation": 0, "label": "Arduino Uno", "properties": {} },
+    { "id": "lcd1", "kind": "lcd1602", "x": 480, "y": 80, "rotation": 0, "label": "LCD 16x2", "properties": {} }
+  ],
+  "wires": [
+    { "id": "w_rs", "from": { "componentId": "uno1", "terminalId": "D12" }, "to": { "componentId": "lcd1", "terminalId": "RS" }, "colorRole": "signal-green", "waypoints": [] },
+    { "id": "w_e", "from": { "componentId": "uno1", "terminalId": "D11" }, "to": { "componentId": "lcd1", "terminalId": "E" }, "colorRole": "signal-green", "waypoints": [] },
+    { "id": "w_d4", "from": { "componentId": "uno1", "terminalId": "D5" }, "to": { "componentId": "lcd1", "terminalId": "D4" }, "colorRole": "signal-yellow", "waypoints": [] },
+    { "id": "w_d5", "from": { "componentId": "uno1", "terminalId": "D4" }, "to": { "componentId": "lcd1", "terminalId": "D5" }, "colorRole": "signal-yellow", "waypoints": [] },
+    { "id": "w_d6", "from": { "componentId": "uno1", "terminalId": "D3" }, "to": { "componentId": "lcd1", "terminalId": "D6" }, "colorRole": "signal-yellow", "waypoints": [] },
+    { "id": "w_d7", "from": { "componentId": "uno1", "terminalId": "D2" }, "to": { "componentId": "lcd1", "terminalId": "D7" }, "colorRole": "signal-yellow", "waypoints": [] },
+    { "id": "w_vss", "from": { "componentId": "lcd1", "terminalId": "VSS" }, "to": { "componentId": "uno1", "terminalId": "GND" }, "colorRole": "ground-black", "waypoints": [] },
+    { "id": "w_rw", "from": { "componentId": "lcd1", "terminalId": "RW" }, "to": { "componentId": "uno1", "terminalId": "GND" }, "colorRole": "ground-black", "waypoints": [] },
+    { "id": "w_k", "from": { "componentId": "lcd1", "terminalId": "K" }, "to": { "componentId": "uno1", "terminalId": "GND" }, "colorRole": "ground-black", "waypoints": [] },
+    { "id": "w_vdd", "from": { "componentId": "lcd1", "terminalId": "VDD" }, "to": { "componentId": "uno1", "terminalId": "5V" }, "colorRole": "vcc-red", "waypoints": [] },
+    { "id": "w_a", "from": { "componentId": "lcd1", "terminalId": "A" }, "to": { "componentId": "uno1", "terminalId": "5V" }, "colorRole": "vcc-red", "waypoints": [] }
+  ],
+  "junctions": [
+    { "id": "j_gnd", "wireIds": ["w_vss", "w_rw", "w_k"], "point": { "x": 300, "y": 500 } },
+    { "id": "j_5v", "wireIds": ["w_vdd", "w_a"], "point": { "x": 300, "y": 120 } }
+  ]
+}

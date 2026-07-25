@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "components": [
+    { "id": "uno1", "kind": "uno-r3", "x": 120, "y": 120, "rotation": 0, "label": "Arduino Uno", "properties": {} },
+    { "id": "pot1", "kind": "potentiometer", "x": 500, "y": 200, "rotation": 0, "label": "10k Pot", "properties": { "ohms": 10000, "initialPosition": 0.5 } }
+  ],
+  "wires": [
+    { "id": "w1", "from": { "componentId": "uno1", "terminalId": "5V" }, "to": { "componentId": "pot1", "terminalId": "a" }, "colorRole": "vcc-red", "waypoints": [] },
+    { "id": "w2", "from": { "componentId": "pot1", "terminalId": "b" }, "to": { "componentId": "uno1", "terminalId": "GND" }, "colorRole": "ground-black", "waypoints": [] },
+    { "id": "w3", "from": { "componentId": "pot1", "terminalId": "wiper" }, "to": { "componentId": "uno1", "terminalId": "A0" }, "colorRole": "signal-yellow", "waypoints": [] }
+  ],
+  "junctions": []
+}

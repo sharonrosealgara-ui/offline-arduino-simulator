@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "lcd-hello-world",
+  "title": "LCD 16x2 — Hello World",
+  "summary": "Show two lines of text on a 16x2 HD44780 LCD in 4-bit mode.",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 20,
+  "board": "uno",
+  "concepts": ["LiquidCrystal", "HD44780", "4-bit interface"],
+  "learningObjectives": [
+    "Wire an HD44780 LCD in 4-bit mode.",
+    "Initialize the display with LiquidCrystal.begin().",
+    "Position the cursor and print text."
+  ],
+  "source": "Sketch.ino",
+  "circuit": "circuit.json",
+  "requiredLibraries": ["LiquidCrystal"],
+  "expectedBehavior": "Row 1 shows 'Offline Arduino'; row 2 shows 'Ready!'.",
+  "wiringChecklist": [
+    "RS to D12, E to D11.",
+    "D4->D5, D5->D4, D6->D3, D7->D2.",
+    "VSS/RW/K to GND; VDD/A to 5V; VO to the contrast model."
+  ],
+  "predictPrompt": "Which pins carry the 4-bit data nibbles?",
+  "observePrompt": "Run the sketch. Do both lines appear correctly?",
+  "tryNext": ["Print millis()/1000 on the second row and watch it count."],
+  "supportedSince": "0.1.0"
+}

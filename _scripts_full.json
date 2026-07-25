@@ -1,0 +1,13 @@
+{
+ "dev": "npm run dev --workspace @offline-arduino/desktop",
+ "build": "npm run build --workspace @offline-arduino/desktop",
+ "typecheck": "tsc -b --pretty",
+ "lint": "eslint .",
+ "test": "vitest run",
+ "test:watch": "vitest",
+ "dist:win": "cross-env BUILD_PLATFORM=win32 TOOLCHAIN_ID=win32-x64 node scripts/validate-toolchain-target.cjs && npm run build && electron-builder --config electron-builder.yml --win --x64",
+ "dist:mac": "node scripts/verify-darwin-toolchains.cjs && npm run build && electron-builder --config electron-builder.yml --mac --universal",
+ "dist:linux": "cross-env BUILD_PLATFORM=linux TOOLCHAIN_ID=linux-x64 node scripts/validate-toolchain-target.cjs && npm run build && electron-builder --config electron-builder.yml --linux --x64",
+ "verify:toolchains": "node scripts/verify-toolchains.mjs",
+ "notices": "node scripts/generate-third-party-notices.mjs"
+}

@@ -1,0 +1,137 @@
+# Offline Arduino Simulator — electron-builder configuration.
+# Authoritative source: UI_CANVAS_AND_PACKAGING_SPEC.md §21.
+#
+# One installer per OS/arch. Native toolchains are placed via extraResources OUTSIDE
+# app.asar and resolved only in Electron main through process.resourcesPath.
+# TOOLCHAIN_ID must be win32-x64 (Windows) or linux-x64 (Linux); macOS carries both
+# Darwin toolchains because the app is Universal and selects at runtime by process.arch.
+appId: com.client.offlinearduinosimulator
+productName: Offline Arduino Simulator
+executableName: offline-arduino-simulator
+copyright: Copyright © 2026
+asar: true
+directories:
+  app: apps/desktop
+  output: release
+  buildResources: build
+files:
+  - dist/main/**/*
+  - dist/preload/**/*
+  - dist/renderer/**/*
+  - package.json
+
+# Shared, architecture-independent offline resources. extraResources are copied
+# outside app.asar into process.resourcesPath.
+extraResources:
+  - from: vendor/arduino-avr
+    to: runtime/arduino-avr
+    filter:
+      - "**/*"
+  - from: vendor/licenses
+    to: runtime/licenses
+    filter:
+      - "**/*"
+  - from: resources/examples
+    to: runtime/examples
+    filter:
+      - "**/*"
+  - from: resources/help
+    to: runtime/help
+    filter:
+      - "**/*"
+  - from: resources/docs
+    to: runtime/docs
+    filter:
+      - "**/*"
+  - from: resources/schemas
+    to: runtime/schemas
+    filter:
+      - "**/*"
+
+afterPack: scripts/verify-packaged-resources.cjs
+
+win:
+  icon: build/icon.ico
+  requestedExecutionLevel: asInvoker
+  # Unsigned distribution: skip winCodeSign entirely (its cache archive contains
+  # darwin symlinks that cannot extract without Windows Developer Mode/elevation).
+  signAndEditExecutable: false
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: portable
+      arch:
+        - x64
+  extraResources:
+    - from: vendor/toolchains/${env.TOOLCHAIN_ID}
+      to: runtime/toolchains/${env.TOOLCHAIN_ID}
+      filter:
+        - "**/*"
+
+nsis:
+  artifactName: ${productName}-${version}-Windows-x64-Setup.${ext}
+  oneClick: true
+  perMachine: false
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Offline Arduino Simulator
+  runAfterFinish: true
+  deleteAppDataOnUninstall: false
+
+portable:
+  artifactName: ${productName}-${version}-Windows-x64-Portable.${ext}
+
+mac:
+  icon: build/icon.icns
+  category: public.app-category.developer-tools
+  minimumSystemVersion: "11.0"
+  identity: null
+  hardenedRuntime: false
+  mergeASARs: true
+  target:
+    - target: dmg
+      arch:
+        - universal
+  artifactName: ${productName}-${version}-macOS-Universal.${ext}
+  extraResources:
+    - from: vendor/toolchains/darwin-x64
+      to: runtime/toolchains/darwin-x64
+      filter:
+        - "**/*"
+    - from: vendor/toolchains/darwin-arm64
+      to: runtime/toolchains/darwin-arm64
+      filter:
+        - "**/*"
+
+dmg:
+  sign: false
+  title: ${productName} ${version}
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
+
+linux:
+  icon: build/icons
+  category: Development
+  synopsis: Offline Arduino Uno classroom simulator
+  description: Compile and simulate supported Arduino Uno classroom projects without internet access.
+  target:
+    - target: AppImage
+      arch:
+        - x64
+  extraResources:
+    - from: vendor/toolchains/${env.TOOLCHAIN_ID}
+      to: runtime/toolchains/${env.TOOLCHAIN_ID}
+      filter:
+        - "**/*"
+  artifactName: ${productName}-${version}-Linux-${arch}.${ext}
+
+appImage:
+  artifactName: ${productName}-${version}-Linux-${arch}.${ext}
+
+publish: null

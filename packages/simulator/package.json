@@ -1,0 +1,17 @@
+{
+  "name": "@offline-arduino/simulator",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "AVR8js Web Worker runner, pure union-find netlist compiler, bounded electrical solver, and component runtime models.",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "@offline-arduino/contracts": "0.1.0",
+    "avr8js": "0.21.0"
+  }
+}

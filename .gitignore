@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+.npm/
+
+# Build output
+dist/
+out/
+release/
+*.tsbuildinfo
+
+# Vendored native toolchains and Arduino core are build inputs fetched by CI.
+# They are large and license-audited; never commit binaries to the repo.
+vendor/toolchains/*/bin/
+vendor/toolchains/*/avr/
+vendor/toolchains/*/lib/
+vendor/toolchains/*/libexec/
+vendor/toolchains/*/lib32/
+vendor/arduino-avr/cores/
+vendor/arduino-avr/variants/
+vendor/arduino-avr/libraries/
+*.exe
+*.dll
+*.dylib
+*.so
+*.so.*
+*.a
+
+# Logs & caches
+*.log
+npm-debug.log*
+.vite/
+.eslintcache
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Env
+.env
+.env.local

@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "components": [
+    { "id": "uno1", "kind": "uno-r3", "x": 120, "y": 120, "rotation": 0, "label": "Arduino Uno", "properties": {} }
+  ],
+  "wires": [],
+  "junctions": []
+}

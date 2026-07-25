@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "components": [
+    { "id": "uno1", "kind": "uno-r3", "x": 120, "y": 160, "rotation": 0, "label": "Arduino Uno", "properties": {} },
+    { "id": "servo1", "kind": "servo", "x": 520, "y": 220, "rotation": 0, "label": "Servo", "properties": {} }
+  ],
+  "wires": [
+    { "id": "w_sig", "from": { "componentId": "uno1", "terminalId": "D9" }, "to": { "componentId": "servo1", "terminalId": "signal" }, "colorRole": "signal-orange", "waypoints": [] },
+    { "id": "w_vcc", "from": { "componentId": "uno1", "terminalId": "5V" }, "to": { "componentId": "servo1", "terminalId": "vcc" }, "colorRole": "vcc-red", "waypoints": [] },
+    { "id": "w_gnd", "from": { "componentId": "servo1", "terminalId": "gnd" }, "to": { "componentId": "uno1", "terminalId": "GND" }, "colorRole": "ground-black", "waypoints": [] }
+  ],
+  "junctions": []
+}

@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "potentiometer",
+  "title": "Potentiometer",
+  "summary": "Read a 10k potentiometer on A0 and print 0-1023 to the Serial Monitor.",
+  "difficulty": "beginner",
+  "estimatedMinutes": 10,
+  "board": "uno",
+  "concepts": ["analogRead", "voltage divider", "Serial"],
+  "learningObjectives": [
+    "Read an analog voltage with analogRead().",
+    "Understand a potentiometer as a voltage divider.",
+    "Print values to the Serial Monitor."
+  ],
+  "source": "Sketch.ino",
+  "circuit": "circuit.json",
+  "requiredLibraries": [],
+  "expectedBehavior": "The Serial Monitor prints a value from about 0 to 1023 as the wiper moves.",
+  "wiringChecklist": [
+    "Pot outer terminal A to 5V.",
+    "Pot outer terminal B to GND.",
+    "Pot wiper to A0."
+  ],
+  "predictPrompt": "What value do you expect when the wiper is centered?",
+  "observePrompt": "Drag the wiper from one end to the other. What is the range?",
+  "tryNext": ["Map the reading to 0-255 and print that instead."],
+  "supportedSince": "0.1.0"
+}

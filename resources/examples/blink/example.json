@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "blink",
+  "title": "Blink",
+  "summary": "Turn the built-in D13 LED on and off every half second.",
+  "difficulty": "beginner",
+  "estimatedMinutes": 5,
+  "board": "uno",
+  "concepts": ["pinMode", "digitalWrite", "delay"],
+  "learningObjectives": [
+    "Configure a pin as an OUTPUT with pinMode().",
+    "Drive a pin HIGH and LOW with digitalWrite().",
+    "Pause execution with delay()."
+  ],
+  "source": "Sketch.ino",
+  "circuit": "circuit.json",
+  "requiredLibraries": [],
+  "expectedBehavior": "The built-in LED (labeled L, driven by D13) alternates on/off every 500 ms.",
+  "wiringChecklist": ["No external wiring is required — the D13 LED is already on the board."],
+  "predictPrompt": "How many times will the LED turn on in 10 seconds?",
+  "observePrompt": "Watch the built-in LED. Does it match your prediction?",
+  "tryNext": ["Change both delay values to 100 and predict the new blink rate."],
+  "supportedSince": "0.1.0"
+}

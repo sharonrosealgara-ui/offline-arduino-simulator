@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "servo-sweep",
+  "title": "Servo Sweep",
+  "summary": "Sweep a servo horn from 0 to 180 degrees and back.",
+  "difficulty": "intermediate",
+  "estimatedMinutes": 15,
+  "board": "uno",
+  "concepts": ["Servo", "pulse timing", "angle control"],
+  "learningObjectives": [
+    "Attach a servo to a pin with Servo.attach().",
+    "Command angles with Servo.write().",
+    "Understand that angle comes from pulse width."
+  ],
+  "source": "Sketch.ino",
+  "circuit": "circuit.json",
+  "requiredLibraries": ["Servo"],
+  "expectedBehavior": "The servo horn sweeps 0 -> 180 -> 0 degrees continuously.",
+  "wiringChecklist": [
+    "Servo signal to D9.",
+    "Servo VCC to 5V.",
+    "Servo ground to GND."
+  ],
+  "predictPrompt": "How long does one full sweep take at 15 ms per degree?",
+  "observePrompt": "Watch the horn. Does the motion match your estimate?",
+  "tryNext": ["Change the step delay to 5 ms and predict the new sweep time."],
+  "supportedSince": "0.1.0"
+}

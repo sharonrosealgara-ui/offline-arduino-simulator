@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "target": "linux-x64",
+  "toolchainVersion": "PINNED_AUDITED_VERSION",
+  "exeSuffix": "",
+  "requiredExecutables": ["avr-gcc", "avr-g++", "avr-ar", "avr-objcopy", "avr-size"],
+  "files": [],
+  "note": "Build against the oldest supported glibc baseline. Populated by scripts/fetch-toolchain.mjs."
+}

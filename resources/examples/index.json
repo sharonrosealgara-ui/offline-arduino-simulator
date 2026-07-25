@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "examples": [
+    {
+      "id": "blink",
+      "title": "Blink",
+      "summary": "Turn the built-in D13 LED on and off every half second.",
+      "difficulty": "beginner",
+      "estimatedMinutes": 5,
+      "concepts": ["pinMode", "digitalWrite", "delay"]
+    },
+    {
+      "id": "pushbutton",
+      "title": "Pushbutton",
+      "summary": "Light the built-in LED while a button is pressed, using INPUT_PULLUP.",
+      "difficulty": "beginner",
+      "estimatedMinutes": 10,
+      "concepts": ["digitalRead", "INPUT_PULLUP", "active-low input"]
+    },
+    {
+      "id": "potentiometer",
+      "title": "Potentiometer",
+      "summary": "Read a 10k potentiometer on A0 and print 0-1023 to the Serial Monitor.",
+      "difficulty": "beginner",
+      "estimatedMinutes": 10,
+      "concepts": ["analogRead", "voltage divider", "Serial"]
+    },
+    {
+      "id": "lcd-hello-world",
+      "title": "LCD 16x2 — Hello World",
+      "summary": "Show two lines of text on a 16x2 HD44780 LCD in 4-bit mode.",
+      "difficulty": "intermediate",
+      "estimatedMinutes": 20,
+      "concepts": ["LiquidCrystal", "HD44780", "4-bit interface"]
+    },
+    {
+      "id": "servo-sweep",
+      "title": "Servo Sweep",
+      "summary": "Sweep a servo horn from 0 to 180 degrees and back.",
+      "difficulty": "intermediate",
+      "estimatedMinutes": 15,
+      "concepts": ["Servo", "pulse timing", "angle control"]
+    }
+  ]
+}

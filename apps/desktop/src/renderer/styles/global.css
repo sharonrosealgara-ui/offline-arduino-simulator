@@ -1,0 +1,315 @@
+/**
+ * Global styles + the workbench CSS Grid layout. Source: UI_CANVAS_AND_PACKAGING_SPEC.md §2.
+ *
+ * High-contrast classroom theme by default (spec §8), respecting system light/dark
+ * preference. Minimum body text 14px, minimum interactive target 36x36 (prefer 40x40).
+ */
+
+:root {
+  color-scheme: light dark;
+  --font-sans: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: 'Cascadia Code', 'Consolas', 'SFMono-Regular', Menlo, Monaco, monospace;
+
+  --bg-app: #f4f5f7;
+  --bg-panel: #ffffff;
+  --bg-panel-alt: #eef0f3;
+  --border: #c7ccd4;
+  --text-primary: #14161a;
+  --text-secondary: #4a4f58;
+  --accent: #0a5fd6;
+  --accent-contrast: #ffffff;
+  --success: #157a3d;
+  --warning: #9a6400;
+  --danger: #b3261e;
+  --focus-ring: #0a5fd6;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-app: #1b1d22;
+    --bg-panel: #24262c;
+    --bg-panel-alt: #2b2e35;
+    --border: #3c3f47;
+    --text-primary: #f2f3f5;
+    --text-secondary: #b7bcc6;
+    --accent: #6ea8ff;
+    --accent-contrast: #0b1220;
+    --success: #4fd486;
+    --warning: #ffcf5c;
+    --danger: #ff8079;
+    --focus-ring: #6ea8ff;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg-app);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+button {
+  min-height: 36px;
+  min-width: 36px;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+.appShell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.commandBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 48px;
+  padding: 0 12px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.commandBar__group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.commandBar__spacer {
+  flex: 1;
+}
+
+.statusBar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 24px;
+  padding: 0 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: var(--bg-panel);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.statusBar__offlineReady {
+  color: var(--success);
+  font-weight: 600;
+}
+
+/* --- Workbench grid: editor | splitter | canvas over a full-width bottom pane --- */
+.workbench {
+  --editor-width: 46%;
+  --bottom-height: 240px;
+  display: grid;
+  grid-template-columns: minmax(400px, var(--editor-width)) 6px minmax(460px, 1fr);
+  grid-template-rows: minmax(320px, 1fr) 6px minmax(160px, var(--bottom-height));
+  flex: 1;
+  min-width: 1024px;
+  min-height: 648px;
+  overflow: hidden;
+}
+
+.editorPane {
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-panel);
+  overflow: hidden;
+}
+
+.columnSplitter {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.canvasPane {
+  grid-column: 3;
+  grid-row: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-panel-alt);
+  overflow: hidden;
+}
+
+.rowSplitter {
+  grid-column: 1 / 4;
+  grid-row: 2;
+}
+
+.bottomPane {
+  grid-column: 1 / 4;
+  grid-row: 3;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-panel);
+  border-top: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.splitter {
+  background: var(--border);
+  position: relative;
+  cursor: col-resize;
+  touch-action: none;
+}
+.splitter[aria-orientation='horizontal'] {
+  cursor: row-resize;
+}
+.splitter::before {
+  content: '';
+  position: absolute;
+  inset: -6px;
+}
+.splitter:hover,
+.splitter:focus-visible {
+  background: var(--accent);
+}
+
+.paneHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+.tabBar {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  overflow-x: auto;
+}
+.tabBar__tab {
+  padding: 8px 14px;
+  border: none;
+  background: transparent;
+  border-bottom: 2px solid transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.tabBar__tab[aria-selected='true'] {
+  color: var(--text-primary);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+
+.scrollArea {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.btn:hover {
+  background: var(--bg-panel-alt);
+}
+.btn--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
+}
+.btn--primary:hover {
+  filter: brightness(1.05);
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.diagnosticRow {
+  display: flex;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  cursor: pointer;
+}
+.diagnosticRow:hover {
+  background: var(--bg-panel-alt);
+}
+.diagnosticRow__badge {
+  flex-shrink: 0;
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+.diagnosticRow__badge--error,
+.diagnosticRow__badge--fatal {
+  background: color-mix(in srgb, var(--danger) 20%, transparent);
+  color: var(--danger);
+}
+.diagnosticRow__badge--warning {
+  background: color-mix(in srgb, var(--warning) 20%, transparent);
+  color: var(--warning);
+}
+.diagnosticRow__badge--info {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  color: var(--accent);
+}

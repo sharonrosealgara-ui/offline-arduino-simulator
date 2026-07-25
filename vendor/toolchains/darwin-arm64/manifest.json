@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "target": "darwin-arm64",
+  "toolchainVersion": "PINNED_AUDITED_VERSION",
+  "exeSuffix": "",
+  "requiredExecutables": ["avr-gcc", "avr-g++", "avr-ar", "avr-objcopy", "avr-size"],
+  "files": [],
+  "note": "Native arm64 toolchain; x64 via Rosetta is fallback only."
+}

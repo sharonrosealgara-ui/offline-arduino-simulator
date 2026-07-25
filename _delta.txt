@@ -1,0 +1,29 @@
+export type ComponentDisplayDelta =
+  | { id: string; kind: 'led'; brightness: number; milliAmps: number }
+  | {
+      id: string;
+      kind: 'lcd1602';
+      rows: [string, string];
+      cursorAddress: number;
+      displayOn: boolean;
+      cursorOn: boolean;
+      blinkOn: boolean;
+    }
+  | { id: string; kind: 'servo'; angle: number; pulseMicros: number | null; signalValid: boolean }
+  | { id: string; kind: 'pushbutton' | 'potentiometer'; value: boolean | number };
+
+export type WorkerToRenderer =
+  | { v: 1; type: 'READY'; sessionId: string }
+  | {
+      v: 1;
+      type: 'PROGRAM_LOADED';
+      sessionId: string;
+      sourceRevision: number;
+      flashBytesUsed: number;
+    }
+  | { 
+---EXPORTS---
+{
+ ".": "./src/index.ts",
+ "./*": "./src/*.ts"
+}

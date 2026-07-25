@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "lib": ["ES2022"],
+    "types": ["node", "electron-vite/node"],
+    "outDir": "./dist/.types-node",
+    "ignoreDeprecations": "5.0"
+  },
+  "references": [{ "path": "../../packages/contracts" }],
+  "include": [
+    "src/main/**/*.ts",
+    "src/preload/**/*.ts",
+    "electron.vite.config.ts"
+  ]
+}

@@ -1,0 +1,60 @@
+{
+  "name": "offline-arduino-simulator-root",
+  "version": "0.1.0",
+  "private": true,
+  "productName": "Offline Arduino Simulator",
+  "description": "Photorealistic 3D virtual electronics lab and offline C++ code editor for makers, engineers, and creators.",
+  "license": "SEE LICENSE IN LICENSE",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace @offline-arduino/desktop",
+    "build": "npm run build --workspace @offline-arduino/desktop",
+    "typecheck": "tsc -b --pretty",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "dist:win": "cross-env BUILD_PLATFORM=win32 TOOLCHAIN_ID=win32-x64 node scripts/validate-toolchain-target.cjs && npm run build && electron-builder --config electron-builder.yml --win --x64",
+    "dist:mac": "node scripts/verify-darwin-toolchains.cjs && npm run build && electron-builder --config electron-builder.yml --mac --universal",
+    "dist:linux": "cross-env BUILD_PLATFORM=linux TOOLCHAIN_ID=linux-x64 node scripts/validate-toolchain-target.cjs && npm run build && electron-builder --config electron-builder.yml --linux --x64",
+    "verify:toolchains": "node scripts/verify-toolchains.mjs",
+    "prune:toolchain": "node scripts/prune-toolchain.js vendor/toolchains/win32-x64 --apply --multilib",
+    "smoke:compile": "node scripts/smoke-compile.mjs",
+    "predist:win": "npm run prune:toolchain",
+    "notices": "node scripts/generate-third-party-notices.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "20.14.10",
+    "@types/react": "18.3.3",
+    "@types/react-dom": "18.3.0",
+    "@typescript-eslint/eslint-plugin": "7.16.0",
+    "@typescript-eslint/parser": "7.16.0",
+    "@vitejs/plugin-react": "4.3.1",
+    "cross-env": "7.0.3",
+    "electron": "31.7.7",
+    "electron-builder": "24.13.3",
+    "electron-vite": "2.3.0",
+    "eslint": "8.57.0",
+    "eslint-plugin-react": "7.34.3",
+    "eslint-plugin-react-hooks": "4.6.2",
+    "jsdom": "24.1.0",
+    "typescript": "5.5.3",
+    "vite": "5.3.3",
+    "vitest": "2.0.2"
+  },
+  "dependencies": {
+    "avr8js": "0.21.0",
+    "lucide-react": "0.408.0",
+    "monaco-editor": "0.50.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "reactflow": "11.11.4",
+    "zod": "3.23.8",
+    "zustand": "4.5.4"
+  }
+}

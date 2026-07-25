@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "components": [
+    { "id": "uno1", "kind": "uno-r3", "x": 120, "y": 120, "rotation": 0, "label": "Arduino Uno", "properties": {} },
+    { "id": "btn1", "kind": "pushbutton", "x": 480, "y": 200, "rotation": 0, "label": "Button", "properties": {} }
+  ],
+  "wires": [
+    { "id": "w1", "from": { "componentId": "uno1", "terminalId": "D2" }, "to": { "componentId": "btn1", "terminalId": "a1" }, "colorRole": "signal-green", "waypoints": [] },
+    { "id": "w2", "from": { "componentId": "btn1", "terminalId": "b1" }, "to": { "componentId": "uno1", "terminalId": "GND" }, "colorRole": "ground-black", "waypoints": [] }
+  ],
+  "junctions": []
+}

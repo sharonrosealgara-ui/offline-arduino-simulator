@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "pushbutton",
+  "title": "Pushbutton",
+  "summary": "Light the built-in LED while a button is pressed, using INPUT_PULLUP.",
+  "difficulty": "beginner",
+  "estimatedMinutes": 10,
+  "board": "uno",
+  "concepts": ["digitalRead", "INPUT_PULLUP", "active-low input"],
+  "learningObjectives": [
+    "Enable the internal pull-up with INPUT_PULLUP.",
+    "Understand active-low inputs (pressed reads LOW).",
+    "React to input in loop()."
+  ],
+  "source": "Sketch.ino",
+  "circuit": "circuit.json",
+  "requiredLibraries": [],
+  "expectedBehavior": "Pressing the virtual button lights the built-in D13 LED.",
+  "wiringChecklist": [
+    "Button terminal A to D2.",
+    "Button terminal B to GND.",
+    "No external pull-down (that would contradict INPUT_PULLUP)."
+  ],
+  "predictPrompt": "When the button is NOT pressed, is D2 HIGH or LOW?",
+  "observePrompt": "Press and release the button. Does the LED follow?",
+  "tryNext": ["Invert the logic so the LED is on when the button is released."],
+  "supportedSince": "0.1.0"
+}

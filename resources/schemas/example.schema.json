@@ -1,0 +1,33 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "offline-arduino://schemas/example.schema.json",
+  "title": "OfflineExampleManifest",
+  "type": "object",
+  "required": [
+    "schemaVersion", "id", "title", "summary", "difficulty", "estimatedMinutes",
+    "board", "concepts", "learningObjectives", "source", "circuit",
+    "requiredLibraries", "expectedBehavior", "wiringChecklist", "predictPrompt",
+    "observePrompt", "tryNext", "supportedSince"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "id": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },
+    "title": { "type": "string", "maxLength": 120 },
+    "summary": { "type": "string", "maxLength": 400 },
+    "difficulty": { "enum": ["beginner", "intermediate"] },
+    "estimatedMinutes": { "type": "integer", "minimum": 1, "maximum": 240 },
+    "board": { "const": "uno" },
+    "concepts": { "type": "array", "items": { "type": "string" } },
+    "learningObjectives": { "type": "array", "items": { "type": "string" } },
+    "source": { "const": "Sketch.ino" },
+    "circuit": { "const": "circuit.json" },
+    "requiredLibraries": { "type": "array", "items": { "type": "string" } },
+    "expectedBehavior": { "type": "string" },
+    "wiringChecklist": { "type": "array", "items": { "type": "string" } },
+    "predictPrompt": { "type": "string" },
+    "observePrompt": { "type": "string" },
+    "tryNext": { "type": "array", "items": { "type": "string" } },
+    "supportedSince": { "type": "string" }
+  }
+}

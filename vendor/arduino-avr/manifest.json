@@ -1,0 +1,652 @@
+{
+  "schemaVersion": 1,
+  "coreVersion": "1.8.3",
+  "board": "uno",
+  "core": "arduino",
+  "variant": "standard",
+  "supportedLibraries": [
+    "EEPROM",
+    "SPI",
+    "Wire",
+    "LiquidCrystal",
+    "Servo"
+  ],
+  "files": [
+    {
+      "path": "boards.txt",
+      "sha256": "31767e04b247a033f783b93a46d88387bd592a24e8d13369a812cd05a4744d21",
+      "bytes": 31721
+    },
+    {
+      "path": "cores/arduino/abi.cpp",
+      "sha256": "a37a4db55565fff2f574b44671bf683de1ae4971d0061611e2fa2631f25b2e8c",
+      "bytes": 1222
+    },
+    {
+      "path": "cores/arduino/Arduino.h",
+      "sha256": "335f45c59532cd7df39ce1435fbf1abf8d503d42ac6085a92e0f2ff75f5fffac",
+      "bytes": 7613
+    },
+    {
+      "path": "cores/arduino/binary.h",
+      "sha256": "cf4471358657a38f744807fe2b6eb7ab5dd13bab402e77d3dd38e78635c02755",
+      "bytes": 11214
+    },
+    {
+      "path": "cores/arduino/CDC.cpp",
+      "sha256": "a6008e0cf39124691b574165cabc47f840d6f07a59b2cb9e9be16ac28a37accc",
+      "bytes": 8514
+    },
+    {
+      "path": "cores/arduino/Client.h",
+      "sha256": "0619cd22b5f07c705d1c19db2c868bf5e2441ce3278f3fba11e71104ee2636bd",
+      "bytes": 1529
+    },
+    {
+      "path": "cores/arduino/HardwareSerial_private.h",
+      "sha256": "b72f4ad3b3ad10797bfb4a72a7f44b9cf16ad7e497424c81abb9cea761eeaae7",
+      "bytes": 4469
+    },
+    {
+      "path": "cores/arduino/HardwareSerial.cpp",
+      "sha256": "83f498a45c3d7c956427678ab4cd55b2bf3cec1f2855648efaa2edeb321ddd39",
+      "bytes": 8989
+    },
+    {
+      "path": "cores/arduino/HardwareSerial.h",
+      "sha256": "1e8b5a1b63f0c2d6b2692e6c4fb5dda694059ba69a847af881dc6aa96871b863",
+      "bytes": 5262
+    },
+    {
+      "path": "cores/arduino/HardwareSerial0.cpp",
+      "sha256": "388bd9bcd3ff9c2b30a1d6d9a14a4b61a5ab070cc8000f186138c0d15565adf6",
+      "bytes": 2606
+    },
+    {
+      "path": "cores/arduino/HardwareSerial1.cpp",
+      "sha256": "a530014dd9f52d02f65db73995b24d18cd38bba586d1249b533826379f82208c",
+      "bytes": 2316
+    },
+    {
+      "path": "cores/arduino/HardwareSerial2.cpp",
+      "sha256": "d7ade11adc2a90e526f5629d7804b95ec2a34c06a6811f4d072cffba3d5a0daa",
+      "bytes": 1976
+    },
+    {
+      "path": "cores/arduino/HardwareSerial3.cpp",
+      "sha256": "c3b7fdb1ca29887151676e5dd8fd326ecc932e458cf1138cd275777068a113f3",
+      "bytes": 1976
+    },
+    {
+      "path": "cores/arduino/hooks.c",
+      "sha256": "525370afcb26502a965376f05b00b4aafc89644e6bc3c693718d56533ca38771",
+      "bytes": 1142
+    },
+    {
+      "path": "cores/arduino/IPAddress.cpp",
+      "sha256": "e423a28f833614ff4e1cf1e5b841181e8e0c727f4ca3ae81ee66afa84cf75f63",
+      "bytes": 2851
+    },
+    {
+      "path": "cores/arduino/IPAddress.h",
+      "sha256": "7703aef6f91a385729cf8f16ed561b0f8c7eb823698c80af3a33f9e0de3b4e72",
+      "bytes": 2861
+    },
+    {
+      "path": "cores/arduino/main.cpp",
+      "sha256": "a2d7d7d72e5259b0212f6682be0ded139f854481fad2c6e742d2f6264924402b",
+      "bytes": 1372
+    },
+    {
+      "path": "cores/arduino/new",
+      "sha256": "abbe52432be6ede3c957107995e3544ebcd3c05992f53498d7d835fea142c17a",
+      "bytes": 127
+    },
+    {
+      "path": "cores/arduino/new.cpp",
+      "sha256": "2e2f4d410e29e13e45cf6616774c036cb19f570f83dcd4b0715db03c30c9fa04",
+      "bytes": 1114
+    },
+    {
+      "path": "cores/arduino/new.h",
+      "sha256": "d1e4a36f29a2f68558cb3158b9824fdef1257ab090778a0929782a4634df1f46",
+      "bytes": 1034
+    },
+    {
+      "path": "cores/arduino/PluggableUSB.cpp",
+      "sha256": "6c39d37902d2819007ef6b82c132ba89c821b134e143d59d33c99a46765e2a62",
+      "bytes": 2725
+    },
+    {
+      "path": "cores/arduino/PluggableUSB.h",
+      "sha256": "555ba172a3004d809a10a8c6bc5ae93154a0148eb5a5a62e9855ad1b57535704",
+      "bytes": 2063
+    },
+    {
+      "path": "cores/arduino/Print.cpp",
+      "sha256": "4e5077fe1dff0b2f506f23bb2a7dea251f739aa9aab2ad285f71ad6434161e26",
+      "bytes": 5442
+    },
+    {
+      "path": "cores/arduino/Print.h",
+      "sha256": "371cb3810e5bbbbb14cad0847038075536604aa38eaefd97cfa99a585f92d132",
+      "bytes": 2963
+    },
+    {
+      "path": "cores/arduino/Printable.h",
+      "sha256": "ba6be49c4ef46aa03fa7b78cc444e72f811805cf33dfdddf26bd062cdbc14a0b",
+      "bytes": 1335
+    },
+    {
+      "path": "cores/arduino/Server.h",
+      "sha256": "a75dd1f4e53398af5006b2f9b26df53ca76dd3999649bdf31bf4120aef4ea144",
+      "bytes": 963
+    },
+    {
+      "path": "cores/arduino/Stream.cpp",
+      "sha256": "a0f2cfbb1489174e0d52ca9798129751e52994f04a9ece88fb465715f8c3b3cb",
+      "bytes": 8776
+    },
+    {
+      "path": "cores/arduino/Stream.h",
+      "sha256": "12e8d59ed3215cdbaad57d58dc1cc50f8dcfab528c9eaf62e260aeb18e25decb",
+      "bytes": 6060
+    },
+    {
+      "path": "cores/arduino/Tone.cpp",
+      "sha256": "7c902769f0950fc26a1032258f526775d25ae61aca97de2036653459172f3d00",
+      "bytes": 15022
+    },
+    {
+      "path": "cores/arduino/Udp.h",
+      "sha256": "2bcab2ff8d1e4acfa389085d81b065dafc0fe7173c808447986f89a852d073ba",
+      "bytes": 4363
+    },
+    {
+      "path": "cores/arduino/USBAPI.h",
+      "sha256": "cbbe7b988a623f014db3f0fb25ce049ecdf63b254bdbdcef3e59b33341913431",
+      "bytes": 6283
+    },
+    {
+      "path": "cores/arduino/USBCore.cpp",
+      "sha256": "7049f755749deccd3556d70737fdb39e892c2ef51075f1e7836b0c33b943a092",
+      "bytes": 19990
+    },
+    {
+      "path": "cores/arduino/USBCore.h",
+      "sha256": "19786e59a5db86abae54c0c12964bd49189c8515494db9f885d1410e153af827",
+      "bytes": 8373
+    },
+    {
+      "path": "cores/arduino/USBDesc.h",
+      "sha256": "ef892808dc7678381052f718092b9fc37794322b242b7df717d1ad38dcf82ba2",
+      "bytes": 1519
+    },
+    {
+      "path": "cores/arduino/WCharacter.h",
+      "sha256": "26aa841fe42aeace3a7caf3af27b9ffecde391b4a5661782027c0c14b6ccf4e3",
+      "bytes": 4576
+    },
+    {
+      "path": "cores/arduino/WInterrupts.c",
+      "sha256": "6550a77cf2e54006286cea7cc22a724d156756a8ad1421b78da6627433449e9b",
+      "bytes": 11466
+    },
+    {
+      "path": "cores/arduino/wiring_analog.c",
+      "sha256": "42d04729634aebbdaaa4272413140705c56fdb81b2f49e02b211867ba803671c",
+      "bytes": 7850
+    },
+    {
+      "path": "cores/arduino/wiring_digital.c",
+      "sha256": "8da6efcb55b64d37898c4def230b875cc5f2c57c31404713e9adcf346d035f99",
+      "bytes": 4978
+    },
+    {
+      "path": "cores/arduino/wiring_private.h",
+      "sha256": "c416d346d436f2ba55507ba867a0fd6bf8d261440194a237fa318e20c5617bdc",
+      "bytes": 2255
+    },
+    {
+      "path": "cores/arduino/wiring_pulse.c",
+      "sha256": "44e8c70ed20c11689ecbf6eedd7b469ad7bc1090d0b0ddfe8ec9a10d4a212b2d",
+      "bytes": 3435
+    },
+    {
+      "path": "cores/arduino/wiring_pulse.S",
+      "sha256": "9810731062c66edf81cfb5af736c66914410471008c40f73dca2562233b135a8",
+      "bytes": 6022
+    },
+    {
+      "path": "cores/arduino/wiring_shift.c",
+      "sha256": "651f4a11837e609be423ceb0b31cfd5cf6b09bad06f62cbc85c241efae8e50ec",
+      "bytes": 1569
+    },
+    {
+      "path": "cores/arduino/wiring.c",
+      "sha256": "df8ef326057fadab50daedc15de0e9ccaef9e32466d7df2e0475888c2bec3657",
+      "bytes": 11963
+    },
+    {
+      "path": "cores/arduino/WMath.cpp",
+      "sha256": "6d7dc0d38000d3d22f56438bc4dd26fe15dd8f9c85fed8d9edf0ba23b6431646",
+      "bytes": 1641
+    },
+    {
+      "path": "cores/arduino/WString.cpp",
+      "sha256": "12c0c7ec6ec3347fb37d33738522816fa953f1f199e8fc9f18ac55a36cced612",
+      "bytes": 17001
+    },
+    {
+      "path": "cores/arduino/WString.h",
+      "sha256": "80f3daf334784df2d454388c37763a9904c5c028658dbd0eb43a16f52729dd61",
+      "bytes": 9910
+    },
+    {
+      "path": "libraries/EEPROM/examples/eeprom_clear/eeprom_clear.ino",
+      "sha256": "096e809e3781726a90bc66f437203e6aba74e6c8df1b76c2cacfb77bd0811b80",
+      "bytes": 912
+    },
+    {
+      "path": "libraries/EEPROM/examples/eeprom_crc/eeprom_crc.ino",
+      "sha256": "998fa9b0d1feb7fbf7a090579deb30c8d7ddfb021e5637a8051e22902f745169",
+      "bytes": 1433
+    },
+    {
+      "path": "libraries/EEPROM/examples/eeprom_get/eeprom_get.ino",
+      "sha256": "b11b91faf5b6209875e9ba8dd56a0596fec88b48568b18fc3943d1d7c9f4d093",
+      "bytes": 1795
+    },
+    {
+      "path": "libraries/EEPROM/examples/eeprom_iteration/eeprom_iteration.ino",
+      "sha256": "bf524b659380bd271018edbd8fac334518603905585350588318a9f070489751",
+      "bytes": 1035
+    },
+    {
+      "path": "libraries/EEPROM/examples/eeprom_put/eeprom_put.ino",
+      "sha256": "3220e10ae4ec4d5a34abb505ec46b42df0e0a4d7bcccffe444602ffd116dd660",
+      "bytes": 1360
+    },
+    {
+      "path": "libraries/EEPROM/examples/eeprom_read/eeprom_read.ino",
+      "sha256": "bceda6065abe17a2def88072c57dddd92673b61d8e6ecb1b887b3f32d9f48b4c",
+      "bytes": 1393
+    },
+    {
+      "path": "libraries/EEPROM/examples/eeprom_update/eeprom_update.ino",
+      "sha256": "4bf891074f8516640a0f0302b21f53ba73e561747fa061af9f7274e1196c2ff2",
+      "bytes": 1814
+    },
+    {
+      "path": "libraries/EEPROM/examples/eeprom_write/eeprom_write.ino",
+      "sha256": "421c4a6a31a3be6a8dfcfa81b3cf079b434d587cf3a03a7143e4d1bbd439c35c",
+      "bytes": 1468
+    },
+    {
+      "path": "libraries/EEPROM/keywords.txt",
+      "sha256": "9b47bb4b8bb6c73b940bfcb613051e1f813d1c0840b2ce03f9060d058d6849ca",
+      "bytes": 502
+    },
+    {
+      "path": "libraries/EEPROM/library.properties",
+      "sha256": "7b44377b05444c626aae064abcdbb224bedc7b3b3b2086965c9b94abc0c6c01c",
+      "bytes": 463
+    },
+    {
+      "path": "libraries/EEPROM/README.md",
+      "sha256": "a07453751b48ab1f7bfd91dc05c06cb2e80c8d591123cef76aab86becee394ee",
+      "bytes": 5143
+    },
+    {
+      "path": "libraries/EEPROM/src/EEPROM.h",
+      "sha256": "9f1c31da3792ce1a639a92a95eba78cf7a418cbe3035003730818ca61f714da3",
+      "bytes": 5457
+    },
+    {
+      "path": "libraries/LiquidCrystal/examples/Autoscroll/Autoscroll.ino",
+      "sha256": "7f1a5513d88808a221095706f3d01a6303d2c64e5ff99e8f368b106172980abf",
+      "bytes": 1977
+    },
+    {
+      "path": "libraries/LiquidCrystal/examples/Blink/Blink.ino",
+      "sha256": "743785787d8d6ab033205cf529f78b842cccb49c88487c3e1e90c5be0b6c8b02",
+      "bytes": 1601
+    },
+    {
+      "path": "libraries/LiquidCrystal/examples/Cursor/Cursor.ino",
+      "sha256": "d0475faf63197bc2329381c8760e43d0cb904d36a22cdb42f7fc71ea3c55d4f0",
+      "bytes": 1624
+    },
+    {
+      "path": "libraries/LiquidCrystal/examples/CustomCharacter/CustomCharacter.ino",
+      "sha256": "062350eaa087ca5754ca3c5a2df3cb78c7ab513dac509e2be4bfd16f3a86c6e6",
+      "bytes": 3048
+    },
+    {
+      "path": "libraries/LiquidCrystal/examples/Display/Display.ino",
+      "sha256": "7fba608350b8f1b68f246db11e1b9ec17b6835b0adc289688397604dd22ba696",
+      "bytes": 1652
+    },
+    {
+      "path": "libraries/LiquidCrystal/examples/HelloWorld/HelloWorld.ino",
+      "sha256": "edeeb29777eb90369a86ba815823bb6a8bb78f98bc84a8313bf863cbd0b1c46a",
+      "bytes": 1717
+    },
+    {
+      "path": "libraries/LiquidCrystal/examples/Scroll/Scroll.ino",
+      "sha256": "84e3e08bd7e0ec214b3a49da1d40d602d406ea022fc0c262ed1c585cf442df1a",
+      "bytes": 2454
+    },
+    {
+      "path": "libraries/LiquidCrystal/examples/SerialDisplay/SerialDisplay.ino",
+      "sha256": "429961992547257ca30c6ed6c7a1352fe890f8bae6bdde0a334f7f1dfa363a8e",
+      "bytes": 1856
+    },
+    {
+      "path": "libraries/LiquidCrystal/examples/setCursor/setCursor.ino",
+      "sha256": "c76acb33a6a3668b59f4546eb3712503ccd8157864854ddd8b06f343215fe1f4",
+      "bytes": 2018
+    },
+    {
+      "path": "libraries/LiquidCrystal/examples/TextDirection/TextDirection.ino",
+      "sha256": "61e9852d0c7c0bc6462b6e7a3165f06221bfa0260d7b511bf3752fcc3bac7296",
+      "bytes": 1990
+    },
+    {
+      "path": "libraries/LiquidCrystal/keywords.txt",
+      "sha256": "2869978f66e354f41ccb260073dc30b4edc09e4234323b00285ea2518a593c3e",
+      "bytes": 846
+    },
+    {
+      "path": "libraries/LiquidCrystal/library.properties",
+      "sha256": "2f42fb318ffffaf90919aafa42446249545ef7ee25745526811f93cefc8d79fe",
+      "bytes": 606
+    },
+    {
+      "path": "libraries/LiquidCrystal/README.adoc",
+      "sha256": "5fad94ae070a931cfd10af3b2fb375f61da8d694e629bd2206aa3535907664b3",
+      "bytes": 1158
+    },
+    {
+      "path": "libraries/LiquidCrystal/src/LiquidCrystal.cpp",
+      "sha256": "2913d012d4c7398324d690c7d94badfa3242eee829c060adcf8757e90c9d4834",
+      "bytes": 9071
+    },
+    {
+      "path": "libraries/LiquidCrystal/src/LiquidCrystal.h",
+      "sha256": "401df74a6b1fd297eb2a8af18ac838dcf201ffa5276c142261dae46eb446298b",
+      "bytes": 2817
+    },
+    {
+      "path": "libraries/Servo/docs/api.md",
+      "sha256": "633d9dbbea1b10764eeb38919dc6006162074ab76d7e00e0130d2ac79dad6ed1",
+      "bytes": 3755
+    },
+    {
+      "path": "libraries/Servo/docs/readme.md",
+      "sha256": "0916cee0fc96f61616a56708d1e40719fe33209a1fac1108f8a579c75e92547c",
+      "bytes": 1703
+    },
+    {
+      "path": "libraries/Servo/examples/Knob/images/knob_BB.png",
+      "sha256": "fabab2e131fb2c7c32910cc5dda868995e118536b2ef6a290d010c63d5152933",
+      "bytes": 20514
+    },
+    {
+      "path": "libraries/Servo/examples/Knob/images/knob_schem.png",
+      "sha256": "49a6999c7d706d0a91f12678237226e2dabfe3c9e6b92782e081da4339ca0730",
+      "bytes": 26918
+    },
+    {
+      "path": "libraries/Servo/examples/Knob/Knob.ino",
+      "sha256": "faba7e31db9b8320b88b82c18fc09adcafbd70a8907e1472c8bdc5d8334c92a4",
+      "bytes": 921
+    },
+    {
+      "path": "libraries/Servo/examples/Knob/readme.md",
+      "sha256": "8c11dd38cbf87ec311d62af865f60a1ce7660bb2a7abfe65366c973f58b1a81a",
+      "bytes": 1327
+    },
+    {
+      "path": "libraries/Servo/examples/Sweep/images/sweep_bb.png",
+      "sha256": "e4f06196d89b5b0fa00e7bbaa7ec758276c84847b8a7179e8e6c8f3b8acc7724",
+      "bytes": 18442
+    },
+    {
+      "path": "libraries/Servo/examples/Sweep/images/sweep_schem.png",
+      "sha256": "a880b9af6e78a74e27cac1094cc0a9120ab05a6ee1f8c129c5810f24a05b58d3",
+      "bytes": 11238
+    },
+    {
+      "path": "libraries/Servo/examples/Sweep/readme.md",
+      "sha256": "801bb16d561b99b0896287f10369c3464cb0de8eb138a6765b234f6043982919",
+      "bytes": 1010
+    },
+    {
+      "path": "libraries/Servo/examples/Sweep/Sweep.ino",
+      "sha256": "575a5c3ef350486d292d60c74caa88d43f4dc4d4833dd7de964968917c6752da",
+      "bytes": 1038
+    },
+    {
+      "path": "libraries/Servo/keywords.txt",
+      "sha256": "59ae2d3c412f136b04c2cb00019dc9f93ba0d56b409c1c3241adb48413e17d2e",
+      "bytes": 586
+    },
+    {
+      "path": "libraries/Servo/library.properties",
+      "sha256": "c373783c19ebe10aead98deb41c7cd4d8c2840b4972f16a7b67445e32562dd89",
+      "bytes": 581
+    },
+    {
+      "path": "libraries/Servo/LICENSE.txt",
+      "sha256": "20c17d8b8c48a600800dfd14f95d5cb9ff47066a9641ddeab48dc54aec96e331",
+      "bytes": 26526
+    },
+    {
+      "path": "libraries/Servo/README.adoc",
+      "sha256": "60118fb34521358959bb2c0ee968e144719e404406232eed4bab290f3fe2d395",
+      "bytes": 991
+    },
+    {
+      "path": "libraries/Servo/src/avr/Servo.cpp",
+      "sha256": "6b4477836ed3a00c3d77a5ad1e6a8636a4ee6cc905a9d93dfc60fca654860abb",
+      "bytes": 10902
+    },
+    {
+      "path": "libraries/Servo/src/avr/ServoTimers.h",
+      "sha256": "c18bf7dfd3804d0862572b4e0ea3b4e73431916771ceb531c28e88ed36ec4461",
+      "bytes": 2174
+    },
+    {
+      "path": "libraries/Servo/src/mbed/Servo.cpp",
+      "sha256": "9b0cd8b6ce8610cf30271cc64bc751394167c147f7a24198598d67d465d1c244",
+      "bytes": 3432
+    },
+    {
+      "path": "libraries/Servo/src/mbed/ServoTimers.h",
+      "sha256": "a601289af8327e6bf55140e76f38f6487912254cbf7988a43e4ba728b8b9850b",
+      "bytes": 25
+    },
+    {
+      "path": "libraries/Servo/src/megaavr/Servo.cpp",
+      "sha256": "46a3b247b22d070be6bd1e089f07bf6c6288b729cd95b7ac8ce6268eeeb679a7",
+      "bytes": 7134
+    },
+    {
+      "path": "libraries/Servo/src/megaavr/ServoTimers.h",
+      "sha256": "a62bb3292892e49d1f6d2bb61039fd04d102ecd47c26880598ce9b3fc6d8aaee",
+      "bytes": 1535
+    },
+    {
+      "path": "libraries/Servo/src/nrf52/Servo.cpp",
+      "sha256": "0655e7165a6e0211d207118be2dec5d43cb4c3fe83845f7d4b3d02c9263a1ea7",
+      "bytes": 4184
+    },
+    {
+      "path": "libraries/Servo/src/nrf52/ServoTimers.h",
+      "sha256": "b21ebb93e4112f65efe41cb85025795e780c6a3da262ed815b3311199e0b7f72",
+      "bytes": 1216
+    },
+    {
+      "path": "libraries/Servo/src/renesas/Servo.cpp",
+      "sha256": "8512a2dfa345e7e2719707a523aec6378aa912aaceb9ae754a74ec7b069f3287",
+      "bytes": 8522
+    },
+    {
+      "path": "libraries/Servo/src/renesas/ServoTimers.h",
+      "sha256": "4a467f2a963fdc1ba93f056e14e2c8e5a23d620ff67b1fbb9eed584a2785ceb4",
+      "bytes": 24
+    },
+    {
+      "path": "libraries/Servo/src/sam/Servo.cpp",
+      "sha256": "fca054e655d8689f090cac957378d1d1ae873ae0271a03ca88216484c6d0d250",
+      "bytes": 9923
+    },
+    {
+      "path": "libraries/Servo/src/sam/ServoTimers.h",
+      "sha256": "a57c1963d74bb1e5183b49ffa55e7072e9334eff621e4095344572de5bf895eb",
+      "bytes": 2635
+    },
+    {
+      "path": "libraries/Servo/src/samd/Servo.cpp",
+      "sha256": "df3f72da87fa054e7188b5c710a8a89402f3be7dfaa26a7ef96be94bce283fa4",
+      "bytes": 10585
+    },
+    {
+      "path": "libraries/Servo/src/samd/ServoTimers.h",
+      "sha256": "4dc4cb22c655cd76a2fafe486d0c754c4e9857c37f8fc52b80236b53c144897c",
+      "bytes": 2414
+    },
+    {
+      "path": "libraries/Servo/src/Servo.h",
+      "sha256": "b444499145e8c61859c4a5fb1a9e1f18e6ffa0c207c99cfe23d23a4da18dbb3f",
+      "bytes": 5404
+    },
+    {
+      "path": "libraries/Servo/src/stm32f4/Servo.cpp",
+      "sha256": "38faed85ad26229996db005097eb3272c428df27257995543292d8d50cf6b4e9",
+      "bytes": 5860
+    },
+    {
+      "path": "libraries/Servo/src/stm32f4/ServoTimers.h",
+      "sha256": "c8e934ff558624c97a6623e94366a2dff6a495214591015ab69e44e292754b2f",
+      "bytes": 7171
+    },
+    {
+      "path": "libraries/Servo/src/xmc/Servo.cpp",
+      "sha256": "db21c3e90988157ccedb5f73132f54ca89a269e029f0020e891dc005bbff9a4c",
+      "bytes": 5186
+    },
+    {
+      "path": "libraries/Servo/src/xmc/ServoTimers.h",
+      "sha256": "58307e1798f219049b85753eff5c2a80b8966d50e621d8b41a266d29ea4ec50b",
+      "bytes": 9274
+    },
+    {
+      "path": "libraries/SPI/examples/BarometricPressureSensor/BarometricPressureSensor.ino",
+      "sha256": "c39557140c6aacbbfadb2ae5291623fad8273ce4da4cb86e8d8931e5e2e9230c",
+      "bytes": 4544
+    },
+    {
+      "path": "libraries/SPI/examples/DigitalPotControl/DigitalPotControl.ino",
+      "sha256": "5dd8b24e0187cd0156693bbed7fa7b0ecbefbfcb0f3355a76bfc16010c28516c",
+      "bytes": 1994
+    },
+    {
+      "path": "libraries/SPI/keywords.txt",
+      "sha256": "5161457f02dc3ace03fe41ad2b72f122cc770ed12bc55660f1f2eb0f7ad35ad1",
+      "bytes": 831
+    },
+    {
+      "path": "libraries/SPI/library.properties",
+      "sha256": "44fe70bb86522405266ed3dffcecfc60396520ec927c6ec50d93a8e0e83a48c2",
+      "bytes": 518
+    },
+    {
+      "path": "libraries/SPI/src/SPI.cpp",
+      "sha256": "adae94aae5f04be3225a568a1ed932a917160c0859e51ee3850fa0da4cf4e345",
+      "bytes": 5716
+    },
+    {
+      "path": "libraries/SPI/src/SPI.h",
+      "sha256": "0051cb99f51bf5e3e9abe9e7bee349ef018198250b0fda9e630513dca71b7491",
+      "bytes": 10392
+    },
+    {
+      "path": "libraries/Wire/examples/digital_potentiometer/digital_potentiometer.ino",
+      "sha256": "95f918c57622200462364c3bc07ced71c641b4c9b684b301302c1b82b8971a70",
+      "bytes": 895
+    },
+    {
+      "path": "libraries/Wire/examples/i2c_scanner/i2c_scanner.ino",
+      "sha256": "1f4e57750a1bf79046da289fedc0f66df85280beb3049f1807ecddce9bdcebca",
+      "bytes": 2087
+    },
+    {
+      "path": "libraries/Wire/examples/master_reader/master_reader.ino",
+      "sha256": "a2ccce01188e10713d6b82edeaef0f723d06c355444863b8d21258b161fc9e5b",
+      "bytes": 730
+    },
+    {
+      "path": "libraries/Wire/examples/master_writer/master_writer.ino",
+      "sha256": "cee9bf57e05e2fc15fdf35c1960b42d3c7ccf514fcd87fed6d4299af3ed7fcf8",
+      "bytes": 646
+    },
+    {
+      "path": "libraries/Wire/examples/SFRRanger_reader/SFRRanger_reader.ino",
+      "sha256": "2947b104abc40ed3cfa0e7add258ed1a4f7eccddd22e3b437086d09aa96b9f60",
+      "bytes": 2692
+    },
+    {
+      "path": "libraries/Wire/examples/slave_receiver/slave_receiver.ino",
+      "sha256": "d5ec1bb273100bfe15fdf4364c02d876999fba40743fef816d230801a3e0599c",
+      "bytes": 977
+    },
+    {
+      "path": "libraries/Wire/examples/slave_sender/slave_sender.ino",
+      "sha256": "e004f6dab4e697962b97a47fc48c0c938ae31029f4fbefd3f022fc5217c84b8d",
+      "bytes": 702
+    },
+    {
+      "path": "libraries/Wire/keywords.txt",
+      "sha256": "acc7a974ecd3ba69f84cd2a08ad130dba5644923e29fc1eabf468350ecf9ec0c",
+      "bytes": 700
+    },
+    {
+      "path": "libraries/Wire/library.properties",
+      "sha256": "175b7bec13aa47a986d8dfe60169dfd18d077b5631c3423d0313e1b5762de239",
+      "bytes": 406
+    },
+    {
+      "path": "libraries/Wire/src/utility/twi.c",
+      "sha256": "0128a439068051155f947defe07f44469a22e6eef8b91d2178f139849ad7538b",
+      "bytes": 21005
+    },
+    {
+      "path": "libraries/Wire/src/utility/twi.h",
+      "sha256": "a8551bcf840a1d17dfa435fb6f299726bf45abfe75018ddc860a7788053a0f30",
+      "bytes": 1840
+    },
+    {
+      "path": "libraries/Wire/src/Wire.cpp",
+      "sha256": "541e12f31323e81f8291180dd4d6dc056b8abf79b1d678ded8afbc2b70a9b3fe",
+      "bytes": 10675
+    },
+    {
+      "path": "libraries/Wire/src/Wire.h",
+      "sha256": "e08adefc3c3b31d9444ba8bd28d67beef1efff310cdef4d8f8aa4ad88542da92",
+      "bytes": 2925
+    },
+    {
+      "path": "platform.txt",
+      "sha256": "8fdfb4a2d64d1d48c4c35199bfe242dc5305ce4d79632415d80b78fe3d14a0e4",
+      "bytes": 7708
+    },
+    {
+      "path": "variants/standard/pins_arduino.h",
+      "sha256": "d313845f9916c1f21c8ba9848d40806f5caab52529ad510e81b3f15318441631",
+      "bytes": 6437
+    }
+  ],
+  "note": "cores/arduino, variants/standard (pins_arduino.h), and the allowlisted libraries are copied from a pinned ArduinoCore-avr checkout. build-recipe.ts snapshots platform.txt flags so an upgrade cannot silently change behavior."
+}

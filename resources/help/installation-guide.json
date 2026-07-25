@@ -1,0 +1,24 @@
+{
+  "version": "0.1.0",
+  "artifacts": [
+    {
+      "platform": "windows",
+      "fileName": "Offline Arduino Simulator-0.1.0-Windows-x64-Setup.exe",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "signed": false
+    },
+    {
+      "platform": "macos",
+      "fileName": "Offline Arduino Simulator-0.1.0-macOS-Universal.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "signed": false
+    },
+    {
+      "platform": "linux",
+      "fileName": "Offline Arduino Simulator-0.1.0-Linux-x64.AppImage",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "signed": false
+    }
+  ],
+  "note": "PLACEHOLDER hashes. Release CI regenerates this file with the real artifact filenames and SHA-256 values before packaging (spec §26-27)."
+}
