@@ -13,6 +13,7 @@ import './monaco-languages'; // side-effect: registers editor features + cpp + j
 import { configureMonacoEnvironment } from './monaco-setup';
 import { useAppStore } from '../state/store';
 import { useMonacoDiagnostics } from '../app/editor/useMonacoDiagnostics';
+import { syncExternalSketch, type SketchSyncTarget } from './external-sketch-sync';
 
 let arduinoLanguageRegistered = false;
 function registerArduinoLanguage(): void {
@@ -94,25 +95,38 @@ export function MonacoSketchEditor(): JSX.Element {
     // circuit while the editor kept displaying the previous text. Verify then compiled
     // source that was not the source on screen — the worst possible failure mode for a
     // teaching tool. This pushes external changes back into the model.
+    //
+    // The adapter also forces the repaint: with `automaticLayout: false` nothing re-measures
+    // the editor when the document is replaced from outside, so the view could keep painting
+    // the old lines until some unrelated event triggered a render. See ./external-sketch-sync.
+    const syncTarget: SketchSyncTarget = {
+      getValue: () => model.getValue(),
+      isDisposed: () => model.isDisposed(),
+      replaceAll: (text) => {
+        applyingExternal.current = true;
+        try {
+          // pushEditOperations rather than setValue so the replacement joins the undo stack
+          // instead of destroying it.
+          model.pushEditOperations([], [{ range: model.getFullModelRange(), text }], () => null);
+        } finally {
+          applyingExternal.current = false;
+        }
+      },
+      revealStart: () => {
+        const active = editorRef.current;
+        if (!active || active.getModel() !== model) return;
+        active.setPosition({ lineNumber: 1, column: 1 });
+        active.setScrollPosition({ scrollTop: 0, scrollLeft: 0 });
+        // Single explicit re-measure. Cheap, and bounded: it only runs when a document was
+        // actually swapped, never on ordinary typing.
+        active.layout();
+      },
+    };
+
     const unsubscribe = useAppStore.subscribe((state, previous) => {
       if (state.project.sketch === previous.project.sketch) return;
-      const current = modelRef.current;
-      if (!current || current.isDisposed()) return;
-      // Equal means the change originated from this editor; nothing to apply.
-      if (current.getValue() === state.project.sketch) return;
-
-      applyingExternal.current = true;
-      try {
-        // pushEditOperations rather than setValue so the replacement joins the undo stack
-        // instead of destroying it.
-        current.pushEditOperations(
-          [],
-          [{ range: current.getFullModelRange(), text: state.project.sketch }],
-          () => null,
-        );
-      } finally {
-        applyingExternal.current = false;
-      }
+      if (!modelRef.current || modelRef.current !== model) return;
+      syncExternalSketch(syncTarget, state.project.sketch);
     });
 
     // Throttled layout on container resize (spec §2.2: editor.layout only after a
