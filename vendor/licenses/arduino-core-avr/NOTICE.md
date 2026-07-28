@@ -21,11 +21,14 @@ archived into `core.a` with the LTO-aware `avr-gcc-ar`. The user's sketch is lin
 it. No core source is patched, and no custom `main()` is substituted for the core's own
 `main.cpp`.
 
-**Canonical text.** `LICENSE` at the root of the ArduinoCore-avr repository. See
-`../README.md` for how to restore it into this tree — it is currently absent, apart from the
-`Servo` notice noted above.
+**Verbatim text — present in this directory** as `COPYING.LIB` (LGPL-2.1, FSF canonical,
+SHA-256 `20e50fe7aae3e56378ebf0417d9de904f55a0e61e4df315333e632a4d3555d95`).
 
-**Obligation status.** Attribution is recorded here. Because the core is dynamically
-relinkable-in-principle static code under LGPL-2.1, distribution should ship the LGPL text
-and note that the core sources are available unmodified upstream at the pinned version.
-Tracked as a release blocker.
+ArduinoCore-avr 1.8.3 has **no repository-root `LICENSE` file**; it declares its licence in
+per-file headers, which direct the recipient to a copy of the LGPL — the copy supplied here.
+The bundled Servo 1.2.2 library additionally carries its own verbatim LGPL-2.1 at
+`runtime/arduino-avr/libraries/Servo/LICENSE.txt`. See `../PROVENANCE.md`.
+
+**Obligation status.** Satisfied: the LGPL-2.1 text ships with the application, and the
+core is used entirely unmodified at the pinned version 1.8.3, whose sources remain available
+upstream.

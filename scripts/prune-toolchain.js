@@ -81,7 +81,7 @@ function remove(p, reason) {
 // COPYING, COPYING3, COPYING.RUNTIME, COPYING.LIB etc. under share/doc; these are the
 // verbatim GPL/LGPL texts we are legally obliged to redistribute alongside the binaries.
 // Blanket-deleting share/doc silently strips them, so walk and keep license-ish files.
-const LICENSE_FILE_RE = /^(copying|licen[cs]e|notice|authors|copyright)([.\-_].*)?$/i;
+const LICENSE_FILE_RE = /^(copying|licen[cs]e|notice|authors|copyright)[0-9]*([.\-_].*)?$/i;
 function removeDocsPreservingLicenses(dir, reason) {
   if (!fs.existsSync(dir)) return;
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {

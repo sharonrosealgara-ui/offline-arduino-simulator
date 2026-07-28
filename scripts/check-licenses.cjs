@@ -28,7 +28,9 @@ const TEXT_REQUIRED = {
   'arduino-core-avr': 'LGPL-2.1-or-later',
 };
 
-const LICENSE_TEXT_RE = /^(copying|licen[cs]e|copyright)([.\-_].*)?$/i;
+// GNU projects genuinely ship files named COPYING3 (GPLv3) and COPYING.LIB (LGPL), so the
+// optional digit run matters — without it a correctly-named upstream COPYING3 is rejected.
+const LICENSE_TEXT_RE = /^(copying|licen[cs]e|copyright)[0-9]*([.\-_].*)?$/i;
 
 function hasVerbatimText(dir) {
   if (!fs.existsSync(dir)) return false;

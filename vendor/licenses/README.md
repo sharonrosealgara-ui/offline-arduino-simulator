@@ -5,29 +5,31 @@ application. This whole directory is copied into the installer as `runtime/licen
 
 ## Status
 
-Each component below has an accurate **attribution record** (`NOTICE.md`) stating what it
-is, which license governs it, and where the canonical text and corresponding source live.
+Each component has an **attribution record** (`NOTICE.md`) stating what it is and which
+licence governs it, plus the **verbatim licence text** it is obliged to carry.
 
-**Verbatim license texts are NOT yet present in this tree.** They ship inside the upstream
-toolchain archive under `share/doc/**` (`COPYING`, `COPYING3`, `COPYING.RUNTIME`,
-`COPYING.LIB`). An earlier revision of `scripts/prune-toolchain.js` deleted `share/doc`
-wholesale and removed them; that bug is fixed (the prune step now preserves any file named
-`COPYING*`, `LICEN[CS]E*`, `NOTICE*`, `AUTHORS*`, `COPYRIGHT*`), but the texts only return
-once the toolchain is re-fetched on a network-enabled build machine:
+`scripts/check-licenses.cjs` verifies both, and runs during packaging against the packaged
+tree. It currently reports:
 
 ```
-node scripts/fetch-toolchain.mjs win32-x64   # build pipeline only — never at runtime
-npm run prune:toolchain
-npm run manifest:win
+[check-licenses] OK: attribution + verbatim license text present for all components.
 ```
 
-`scripts/check-licenses.cjs` reports exactly which texts are missing and runs during
-packaging.
+**Where those texts came from — including a correction to an earlier claim made in this
+repository — is recorded in [`PROVENANCE.md`](./PROVENANCE.md)**, with the source URL,
+version, and SHA-256 for every file. In short: the pinned toolchain archive ships no licence
+texts at all (it has no `share/` directory), so they were taken from the upstream projects
+at the exact versions redistributed — GCC 7.3.0, avr-libc 2.0.0, and the FSF's canonical
+LGPL-2.1.
 
-> **Distribution gate.** Shipping the GPL-3.0 `avr-gcc`/binutils binaries to a third party
-> without the accompanying license text — and without satisfying the corresponding-source
-> obligation — is a licence violation. Complete the step above and have the client's counsel
-> review the obligations before any external distribution. See `avr-gcc/NOTICE.md`.
+> **Remaining obligation — corresponding source.** Shipping the licence text satisfies only
+> part of GPL-3.0. Redistributing the GPL-3.0 `avr-gcc`/binutils **binaries** also obliges
+> the distributor to provide the complete corresponding source for that exact build, either
+> alongside the binaries or via a written offer valid for three years (GPL-3.0 §6). These
+> binaries are Arduino's build, so the practical route is to mirror Arduino's source archive
+> in the same release channel as the installer rather than relying on a third-party URL
+> staying reachable. Have counsel confirm before wide external distribution.
+> See `avr-gcc/NOTICE.md`.
 
 ## Components
 

@@ -485,9 +485,10 @@ These are current facts about v0.1.0, not roadmap items:
 - **Single-file sketches only** (`Sketch.ino`).
 - **TX / RX / ON board LEDs are rendered unlit** because nothing in the simulator drives
   them. Only the `L` LED (pin 13) reflects real state.
-- **Verbatim third-party licence texts are not yet bundled** — see
-  [Asset sources and licences](#asset-sources-and-licences). This is a **distribution
-  blocker**, and packaging fails unless explicitly overridden.
+- **GPL corresponding-source obligation is not yet discharged.** The verbatim licence texts
+  *are* bundled and the licence check passes without override, but redistributing the
+  GPL-3.0 toolchain binaries also requires offering their matching source — see
+  [Asset sources and licences](#asset-sources-and-licences).
 - **Reduced-quality graphics mode** ("Low-Spec") is implemented and switches DPR, shadows,
   antialiasing, and geometry detail, but has not been benchmarked on low-spec classroom
   hardware.
@@ -569,24 +570,36 @@ Attribution records live in `vendor/licenses/<component>/NOTICE.md` and are pack
 `runtime/licenses/`. Pinned versions and SHA-256 values are in `toolchain-lock.json` and
 each `vendor/toolchains/<target>/manifest.json`.
 
-> ### ⚠ Distribution blocker
+### Verbatim licence texts — shipped
+
+| File | Component & version | SHA-256 |
+| --- | --- | --- |
+| `vendor/licenses/avr-gcc/COPYING3` | GPL-3.0, from the GCC 7.3.0 release | `8ceb4b9e…b65b903` |
+| `vendor/licenses/avr-gcc/COPYING.RUNTIME` | GCC Runtime Library Exception 3.1, same release | `9d6b43ce…dc90f74` |
+| `vendor/licenses/avr-libc/LICENSE.txt` | avr-libc 2.0.0 (Modified BSD) | `5637a1ae…ecf278ef` |
+| `vendor/licenses/arduino-core-avr/COPYING.LIB` | LGPL-2.1, FSF canonical | `20e50fe7…3555d95` |
+
+Source URLs, versions, and the full verification method are in
+[`vendor/licenses/PROVENANCE.md`](vendor/licenses/PROVENANCE.md). No licence text has been
+edited, summarised, or reformatted — each is the upstream file byte-for-byte.
+`scripts/check-licenses.cjs` runs during packaging and fails the build if any is missing;
+it currently passes with **no override**.
+
+> **Note on an earlier claim.** A previous revision of this file stated that
+> `scripts/prune-toolchain.js` had deleted these texts from `share/doc`. That was wrong: the
+> pinned toolchain archive was downloaded, checksum-verified, and inspected — it ships **no
+> licence texts and no `share/` directory at all**. The prune script's licence-preservation
+> guard is retained as defensive hygiene, but it was not the cause.
+
+> ### ⚠ Remaining obligation — GPL corresponding source
 >
-> The **verbatim** GPL-3.0, LGPL-2.1, and avr-libc licence texts are **not currently in the
-> tree**. They ship inside the upstream toolchain archive under `share/doc/**`; an earlier
-> revision of `scripts/prune-toolchain.js` deleted that directory wholesale. The prune step
-> now preserves `COPYING*` / `LICEN[CS]E*` / `NOTICE*` / `AUTHORS*` / `COPYRIGHT*`, but the
-> texts only return once the toolchain is re-fetched on a network-enabled build machine:
->
-> ```bash
-> node scripts/fetch-toolchain.mjs win32-x64
-> npm run prune:toolchain
-> npm run manifest:win
-> ```
->
-> `scripts/check-licenses.cjs` runs during packaging and **fails the build** until this is
-> done. The current Windows artifacts were produced with `ALLOW_MISSING_LICENSE_TEXTS=1`
-> and are therefore **for internal review only — do not distribute them externally.**
-> Have counsel review the GPL corresponding-source obligation before any external release.
+> Shipping the licence text satisfies only part of GPL-3.0. Redistributing the GPL-3.0
+> `avr-gcc`/binutils **binaries** also obliges the distributor to provide the complete
+> corresponding source for that exact build — alongside the binaries, or via a written offer
+> valid for three years (GPL-3.0 §6). These are Arduino's builds, so the practical route is
+> to mirror Arduino's source archive in the same release channel as the installer rather
+> than relying on a third-party URL staying reachable. **Have counsel confirm before wide
+> external distribution.**
 
 ---
 

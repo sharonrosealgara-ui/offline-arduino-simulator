@@ -17,9 +17,15 @@ GCC emits into your compiled sketch is additionally covered by the **GCC Runtime
 Exception**, which is why compiling a sketch with this toolchain does not impose GPL terms
 on the sketch.
 
-**Canonical text.** `COPYING3` (GPL-3.0) and `COPYING.RUNTIME` (Runtime Library Exception),
-shipped in the upstream archive under `share/doc/`. See `../README.md` for how to restore
-them into this tree — they are currently absent.
+**Verbatim text — present in this directory.**
+
+- `COPYING3` — GPL-3.0, taken from the GCC 7.3.0 release
+  (SHA-256 `8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903`)
+- `COPYING.RUNTIME` — GCC Runtime Library Exception 3.1, from the same release
+  (SHA-256 `9d6b43ce4d8de0c878bf16b54d8e7a10d9bd42b75178153e3af6a815bdc90f74`)
+
+The bundled binutils tools are GPL-3.0-or-later and are covered by the same `COPYING3`.
+Full sourcing detail is in `../PROVENANCE.md`.
 
 ## Obligations this project must satisfy before external distribution
 

@@ -15,9 +15,11 @@ binary form requires reproducing the copyright notice, the condition list, and t
 disclaimer in the accompanying materials. There is no copyleft obligation and no
 corresponding-source requirement.
 
-**Canonical text.** The `LICENSE` file at the root of the avr-libc source distribution, also
-shipped under `share/doc/avr-libc*/` in the upstream toolchain archive. See `../README.md`
-for how to restore it into this tree — it is currently absent.
+**Verbatim text — present in this directory** as `LICENSE.txt`, taken from the
+`avr-libc-2_0_0-release` tag to match the bundled 2.0.0 runtime
+(SHA-256 `5637a1aea5eb9c3a379611c6380b49653f68f9ffe0e1df0b7f5d6f12ecf278ef`).
+Full sourcing detail is in `../PROVENANCE.md`.
 
-**Obligation status.** Attribution is recorded here; the verbatim notice text still needs to
-be shipped alongside the binaries. Tracked as a release blocker.
+**Obligation status.** Satisfied: the Modified BSD licence requires reproducing the
+copyright notice, condition list, and disclaimer in the accompanying materials, which
+`LICENSE.txt` does. There is no copyleft or corresponding-source requirement.
