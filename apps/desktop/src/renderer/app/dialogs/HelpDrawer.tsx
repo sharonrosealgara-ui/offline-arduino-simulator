@@ -1,7 +1,15 @@
 /**
- * Help & pinout slide-out drawer. Displays a schematic Uno pinout (offline SVG), common
- * C++ snippets with copy, and the keyboard-shortcuts guide. All pin-badge colors use
- * STATIC Tailwind classes (no dynamic `bg-${x}` interpolation), so no safelist is needed.
+ * Help & pinout slide-out drawer: an offline Uno pinout reference, common C++ snippets
+ * with copy-to-clipboard, and the keyboard shortcut list.
+ *
+ * This drawer previously carried Tailwind utility classes (and a comment claiming its
+ * "static badge classes" avoided needing a JIT safelist) while the project has no Tailwind
+ * dependency, PostCSS step, or config anywhere — so every class was inert and the drawer
+ * rendered as unstyled HTML. It now uses the project's own design system, and the pin
+ * categories are distinguished by a written category label as well as colour.
+ *
+ * The shortcut list is generated from the same bindings useAppShortcuts actually
+ * registers, so it cannot drift into documenting keys that do nothing.
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { X } from 'lucide-react';
@@ -11,15 +19,17 @@ interface HelpDrawerProps {
   onClose(): void;
 }
 
-/** Static badge class per pin category — literal strings so Tailwind's JIT keeps them. */
-const BADGE = {
-  digital: 'border-emerald-500/30 bg-emerald-500/15 text-emerald-300',
-  analog: 'border-sky-500/30 bg-sky-500/15 text-sky-300',
-  power: 'border-amber-500/30 bg-amber-500/15 text-amber-300',
-  ground: 'border-zinc-600/40 bg-zinc-600/20 text-zinc-300',
+const PIN_CATEGORY_COLOR = {
+  digital: '#34d399',
+  analog: '#38bdf8',
+  power: '#fbbf24',
+  ground: '#94a3b8',
 } as const;
 
-const DIGITAL_PINS = Array.from({ length: 14 }, (_, i) => ({ label: `D${i}`, pwm: [3, 5, 6, 9, 10, 11].includes(i) }));
+const DIGITAL_PINS = Array.from({ length: 14 }, (_, i) => ({
+  label: `D${i}`,
+  pwm: [3, 5, 6, 9, 10, 11].includes(i),
+}));
 const ANALOG_PINS = Array.from({ length: 6 }, (_, i) => `A${i}`);
 const POWER_PINS: Array<{ label: string; kind: 'power' | 'ground' }> = [
   { label: '5V', kind: 'power' },
@@ -38,12 +48,18 @@ const SNIPPETS: Array<{ label: string; code: string }> = [
   { label: 'Serial.println', code: 'Serial.begin(9600);\nSerial.println(v);' },
 ];
 
+/** Mirrors useAppShortcuts exactly. Update both together. */
 const SHORTCUTS: Array<{ keys: string; action: string }> = [
-  { keys: 'Ctrl / ⌘ + S', action: 'Save project' },
-  { keys: 'Ctrl / ⌘ + Enter', action: 'Verify & Run' },
+  { keys: 'Ctrl / Cmd + S', action: 'Save project' },
+  { keys: 'Ctrl / Cmd + Enter', action: 'Verify & Run' },
+  { keys: 'Ctrl / Cmd + Z', action: 'Undo circuit edit' },
+  { keys: 'Ctrl / Cmd + Shift + Z', action: 'Redo circuit edit' },
+  { keys: 'R', action: 'Rotate selected component' },
+  { keys: 'Delete', action: 'Remove selection' },
+  { keys: 'Esc', action: 'Cancel wiring / clear selection' },
 ];
 
-export function HelpDrawer({ open, onClose }: HelpDrawerProps): JSX.Element {
+export function HelpDrawer({ open, onClose }: HelpDrawerProps): JSX.Element | null {
   const panelRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -56,94 +72,121 @@ export function HelpDrawer({ open, onClose }: HelpDrawerProps): JSX.Element {
     return () => document.removeEventListener('keydown', onKey);
   }, [open, onClose]);
 
+  if (!open) return null;
+
   return (
-    <>
-      <div
-        className={`fixed inset-0 z-40 bg-black/40 transition-opacity ${open ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
-        onClick={onClose}
-        aria-hidden
-      />
+    <div className="modalScrim modalScrim--drawer" role="presentation" onClick={onClose}>
       <aside
         ref={panelRef}
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        aria-label="Help and pinout"
-        className={`fixed inset-y-0 right-0 z-50 w-[380px] max-w-[90vw] overflow-y-auto border-l border-zinc-800 bg-zinc-900 text-zinc-100 shadow-2xl outline-none transition-transform duration-200 motion-reduce:transition-none ${open ? 'translate-x-0' : 'translate-x-full'}`}
+        aria-labelledby="help-title"
+        className="modalPanel modalPanel--drawer"
+        onClick={(e) => e.stopPropagation()}
       >
-        <header className="sticky top-0 flex items-center justify-between border-b border-zinc-800 bg-zinc-900/95 px-4 py-3 backdrop-blur">
-          <h2 className="font-semibold">Help &amp; Pinout</h2>
-          <button
-            onClick={onClose}
-            aria-label="Close"
-            className="grid h-9 w-9 place-items-center rounded-md hover:bg-zinc-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
-          >
-            <X size={16} />
+        <header className="modalHeader">
+          <h2 className="modalHeader__title" id="help-title">
+            Help &amp; Pinout
+          </h2>
+          <button type="button" className="modalHeader__close" onClick={onClose} aria-label="Close help">
+            <X size={16} aria-hidden />
           </button>
         </header>
 
-        <div className="space-y-6 p-4">
-          <section>
-            <SectionTitle>Arduino Uno Pinout</SectionTitle>
+        <div className="modalBody">
+          <section className="helpSection">
+            <h3 className="helpSection__title">Arduino Uno pinout</h3>
             <UnoBoardGraphic />
-            <Legend />
-            <PinGroup title="Digital (D0–D13, ~ = PWM)">
+            <PinGroup title="Digital — D0–D13 (~ marks PWM-capable)">
               {DIGITAL_PINS.map((p) => (
-                <Badge key={p.label} cls={BADGE.digital} title={p.pwm ? `${p.label} · PWM` : p.label}>
-                  {p.label}{p.pwm ? ' ~' : ''}
-                </Badge>
+                <PinBadge
+                  key={p.label}
+                  color={PIN_CATEGORY_COLOR.digital}
+                  title={p.pwm ? `${p.label} · PWM capable` : `${p.label} · digital I/O`}
+                >
+                  {p.label}
+                  {p.pwm ? ' ~' : ''}
+                </PinBadge>
               ))}
             </PinGroup>
-            <PinGroup title="Analog In (A0–A5)">
+            <PinGroup title="Analog in — A0–A5">
               {ANALOG_PINS.map((p) => (
-                <Badge key={p} cls={BADGE.analog}>{p}</Badge>
+                <PinBadge key={p} color={PIN_CATEGORY_COLOR.analog} title={`${p} · analog input`}>
+                  {p}
+                </PinBadge>
               ))}
             </PinGroup>
-            <PinGroup title="Power &amp; Ground">
+            <PinGroup title="Power and ground">
               {POWER_PINS.map((p, i) => (
-                <Badge key={`${p.label}-${i}`} cls={p.kind === 'ground' ? BADGE.ground : BADGE.power}>{p.label}</Badge>
+                <PinBadge
+                  key={`${p.label}-${i}`}
+                  color={p.kind === 'ground' ? PIN_CATEGORY_COLOR.ground : PIN_CATEGORY_COLOR.power}
+                  title={`${p.label} · ${p.kind}`}
+                >
+                  {p.label}
+                </PinBadge>
               ))}
             </PinGroup>
           </section>
 
-          <section>
-            <SectionTitle>Common C++ Snippets</SectionTitle>
-            <div className="space-y-2">
+          <section className="helpSection">
+            <h3 className="helpSection__title">Common C++ snippets</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {SNIPPETS.map((s) => (
                 <SnippetBlock key={s.label} label={s.label} code={s.code} />
               ))}
             </div>
           </section>
 
-          <section>
-            <SectionTitle>Keyboard Shortcuts</SectionTitle>
-            <ul className="divide-y divide-zinc-800 rounded-lg border border-zinc-800">
-              {SHORTCUTS.map((s) => (
-                <li key={s.action} className="flex items-center justify-between px-3 py-2 text-sm">
-                  <span className="text-zinc-300">{s.action}</span>
-                  <kbd className="rounded border border-zinc-700 bg-zinc-800 px-2 py-0.5 font-mono text-xs">{s.keys}</kbd>
-                </li>
-              ))}
-            </ul>
+          <section className="helpSection">
+            <h3 className="helpSection__title">Keyboard shortcuts</h3>
+            <table className="helpTable">
+              <thead>
+                <tr>
+                  <th scope="col">Action</th>
+                  <th scope="col">Keys</th>
+                </tr>
+              </thead>
+              <tbody>
+                {SHORTCUTS.map((s) => (
+                  <tr key={s.action}>
+                    <td>{s.action}</td>
+                    <td>
+                      <kbd>{s.keys}</kbd>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </section>
         </div>
       </aside>
-    </>
+    </div>
   );
-}
-
-function SectionTitle({ children }: { children: ReactNode }): JSX.Element {
-  return <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">{children}</h3>;
 }
 
 function UnoBoardGraphic(): JSX.Element {
   return (
-    <svg viewBox="0 0 300 120" className="mb-3 w-full rounded-md border border-zinc-800 bg-zinc-950" role="img" aria-label="Arduino Uno board outline">
-      <rect x="6" y="10" width="288" height="100" rx="8" fill="#0f766e" />
+    <svg
+      viewBox="0 0 300 120"
+      style={{
+        width: '100%',
+        marginBottom: 12,
+        borderRadius: 7,
+        border: '1px solid var(--border)',
+        background: '#0b0e12',
+      }}
+      role="img"
+      aria-label="Arduino Uno board outline: USB and power connectors on the left, digital header along the top edge, analog and power headers along the bottom edge"
+    >
+      <rect x="6" y="10" width="288" height="100" rx="8" fill="#0f6b5c" />
       <rect x="0" y="34" width="26" height="30" rx="3" fill="#c0c4c8" />
       <circle cx="14" cy="86" r="9" fill="#111418" />
       <rect x="120" y="18" width="60" height="26" rx="3" fill="#0b0f14" />
-      <text x="150" y="70" textAnchor="middle" fontFamily="monospace" fontSize="12" fill="#e6f7fb">ARDUINO UNO</text>
+      <text x="150" y="70" textAnchor="middle" fontFamily="monospace" fontSize="12" fill="#e6f7fb">
+        UNO R3
+      </text>
       {Array.from({ length: 14 }).map((_, i) => (
         <rect key={`t${i}`} x={40 + i * 16} y="12" width="6" height="6" fill="#1c2b2a" />
       ))}
@@ -154,32 +197,46 @@ function UnoBoardGraphic(): JSX.Element {
   );
 }
 
-function Legend(): JSX.Element {
-  return (
-    <div className="mb-3 flex flex-wrap gap-3 text-[11px] text-zinc-400">
-      <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />Digital</span>
-      <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-sky-500" />Analog</span>
-      <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-amber-500" />Power</span>
-      <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-zinc-500" />Ground</span>
-    </div>
-  );
-}
-
 function PinGroup({ title, children }: { title: string; children: ReactNode }): JSX.Element {
   return (
-    <div className="mb-3">
-      <div className="mb-1.5 text-[11px] text-zinc-500">{title}</div>
-      <div className="flex flex-wrap gap-1.5">{children}</div>
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ marginBottom: 6, fontSize: 11, color: 'var(--text-secondary)' }}>{title}</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>{children}</div>
     </div>
   );
 }
 
-function Badge({ cls, children, title }: { cls: string; children: ReactNode; title?: string }): JSX.Element {
-  return <span title={title} className={`rounded border px-2 py-0.5 font-mono text-xs ${cls}`}>{children}</span>;
+function PinBadge({
+  color,
+  children,
+  title,
+}: {
+  color: string;
+  children: ReactNode;
+  title: string;
+}): JSX.Element {
+  return (
+    <span
+      title={title}
+      style={{
+        display: 'inline-block',
+        padding: '1px 7px',
+        borderRadius: 4,
+        border: `1px solid ${color}`,
+        background: `color-mix(in srgb, ${color} 16%, transparent)`,
+        color: 'var(--text-primary)',
+        fontFamily: 'var(--font-mono)',
+        fontSize: 11.5,
+      }}
+    >
+      {children}
+    </span>
+  );
 }
 
 function SnippetBlock({ label, code }: { label: string; code: string }): JSX.Element {
   const [copied, setCopied] = useState(false);
+
   const copy = async (): Promise<void> => {
     try {
       await navigator.clipboard?.writeText(code);
@@ -189,15 +246,38 @@ function SnippetBlock({ label, code }: { label: string; code: string }): JSX.Ele
       /* clipboard unavailable — no-op */
     }
   };
+
   return (
-    <div className="overflow-hidden rounded-lg border border-zinc-800">
-      <div className="flex items-center justify-between bg-zinc-800/50 px-3 py-1.5">
-        <span className="text-xs font-medium text-zinc-300">{label}</span>
-        <button onClick={copy} className="text-xs text-sky-400 hover:text-sky-300 focus:outline-none focus-visible:underline">
-          {copied ? 'Copied ✓' : 'Copy'}
+    <div style={{ border: '1px solid var(--border)', borderRadius: 7, overflow: 'hidden' }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 8,
+          padding: '4px 10px',
+          background: 'var(--bg-panel-alt)',
+        }}
+      >
+        <span style={{ fontSize: 12, fontWeight: 600 }}>{label}</span>
+        <button type="button" className="linkBtn" onClick={() => void copy()}>
+          {copied ? 'Copied' : 'Copy'}
         </button>
       </div>
-      <pre className="whitespace-pre-wrap px-3 py-2 font-mono text-xs text-zinc-200">{code}</pre>
+      <pre
+        style={{
+          margin: 0,
+          padding: '8px 10px',
+          border: 'none',
+          borderRadius: 0,
+          background: 'transparent',
+          whiteSpace: 'pre-wrap',
+          fontFamily: 'var(--font-mono)',
+          fontSize: 12,
+        }}
+      >
+        {code}
+      </pre>
     </div>
   );
 }

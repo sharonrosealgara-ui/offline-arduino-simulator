@@ -2,8 +2,32 @@
  * Command bar. Consistent workbench verbs (spec §8): Verify, Run, Pause, Step, Reset,
  * Stop. Lucide-React icons; every action is keyboard reachable.
  */
-import { CheckCircle2, Play, Pause, StepForward, RotateCcw, Square, FolderOpen, Save, BookOpen, HelpCircle, Gauge } from 'lucide-react';
-import { useCompiler, useProject, useSimulation, useLayout } from '../state/store';
+import {
+  CheckCircle2,
+  Play,
+  Pause,
+  StepForward,
+  RotateCcw,
+  Square,
+  FolderOpen,
+  Save,
+  BookOpen,
+  HelpCircle,
+  Gauge,
+  Undo2,
+  Redo2,
+  PanelLeft,
+  PanelRight,
+} from 'lucide-react';
+import {
+  useCompiler,
+  useProject,
+  useSimulation,
+  useLayout,
+  useActions,
+  useCanUndo,
+  useCanRedo,
+} from '../state/store';
 import { useCompilerStore } from './state/compiler-store';
 import { simulationClient } from '../simulation/simulation-client';
 import * as controller from './workbench-controller';
@@ -17,6 +41,10 @@ export function CommandBar({ onOpenExamples, onOpenDocumentation }: Props): JSX.
   const compiler = useCompiler();
   const project = useProject();
   const simulation = useSimulation();
+  const layout = useLayout();
+  const actions = useActions();
+  const canUndo = useCanUndo();
+  const canRedo = useCanRedo();
   // Single source of truth for the Verify pipeline: idle -> compiling -> success | error.
   const verifyStatus = useCompilerStore((s) => s.status);
   const verifyOutput = useCompilerStore((s) => s.output);
@@ -103,11 +131,47 @@ export function CommandBar({ onOpenExamples, onOpenDocumentation }: Props): JSX.
       <div className="commandBar__spacer" />
 
       <div className="commandBar__group">
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }} title="Low-spec mode: 30 FPS, quarter real-time">
-          <Gauge size={16} />
+        <button
+          className="btn btn--compact"
+          onClick={() => actions.undo()}
+          disabled={!canUndo}
+          title="Undo circuit edit (Ctrl+Z)"
+          aria-label="Undo circuit edit"
+        >
+          <Undo2 size={15} aria-hidden />
+        </button>
+        <button
+          className="btn btn--compact"
+          onClick={() => actions.redo()}
+          disabled={!canRedo}
+          title="Redo circuit edit (Ctrl+Shift+Z)"
+          aria-label="Redo circuit edit"
+        >
+          <Redo2 size={15} aria-hidden />
+        </button>
+
+        <button
+          className="btn btn--compact"
+          onClick={() => actions.setLayout({ trayVisible: !layout.trayVisible })}
+          aria-pressed={layout.trayVisible}
+          title="Toggle the component library panel"
+        >
+          <PanelLeft size={15} aria-hidden />
+        </button>
+        <button
+          className="btn btn--compact"
+          onClick={() => actions.setLayout({ inspectorVisible: !layout.inspectorVisible })}
+          aria-pressed={layout.inspectorVisible}
+          title="Toggle the inspector panel"
+        >
+          <PanelRight size={15} aria-hidden />
+        </button>
+
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }} title="Low-spec mode: 30 FPS simulation, no shadows or antialiasing">
+          <Gauge size={16} aria-hidden />
           <input
             type="checkbox"
-            checked={useLowSpec()}
+            checked={layout.lowSpecMode}
             onChange={(e) => simulationClient.setLowSpec(e.target.checked)}
           />
           Low-spec
@@ -118,10 +182,6 @@ export function CommandBar({ onOpenExamples, onOpenDocumentation }: Props): JSX.
       </div>
     </div>
   );
-}
-
-function useLowSpec(): boolean {
-  return useLayout().lowSpecMode;
 }
 
 function VerifyStatusDot({ status }: { status: 'idle' | 'compiling' | 'success' | 'error' }): JSX.Element {

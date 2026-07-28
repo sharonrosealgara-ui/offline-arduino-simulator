@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "productName": "Offline Arduino Simulator",
-  "description": "Photorealistic 3D virtual electronics lab and offline C++ code editor for makers, engineers, and creators.",
+  "description": "Offline Arduino Uno simulator: 3D circuit workspace with a bundled AVR-GCC toolchain and AVR8js simulation.",
   "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=20.0.0"
@@ -19,13 +19,14 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "dist:win": "cross-env BUILD_PLATFORM=win32 TOOLCHAIN_ID=win32-x64 node scripts/validate-toolchain-target.cjs && npm run build && electron-builder --config electron-builder.yml --win --x64",
+    "dist:win": "cross-env BUILD_PLATFORM=win32 TOOLCHAIN_ID=win32-x64 node scripts/validate-toolchain-target.cjs && npm run build && cross-env TOOLCHAIN_ID=win32-x64 electron-builder --config electron-builder.yml --win --x64",
     "dist:mac": "node scripts/verify-darwin-toolchains.cjs && npm run build && electron-builder --config electron-builder.yml --mac --universal",
-    "dist:linux": "cross-env BUILD_PLATFORM=linux TOOLCHAIN_ID=linux-x64 node scripts/validate-toolchain-target.cjs && npm run build && electron-builder --config electron-builder.yml --linux --x64",
+    "dist:linux": "cross-env BUILD_PLATFORM=linux TOOLCHAIN_ID=linux-x64 node scripts/validate-toolchain-target.cjs && npm run build && cross-env TOOLCHAIN_ID=linux-x64 electron-builder --config electron-builder.yml --linux --x64",
     "verify:toolchains": "node scripts/verify-toolchains.mjs",
     "prune:toolchain": "node scripts/prune-toolchain.js vendor/toolchains/win32-x64 --apply --multilib",
+    "manifest:win": "node scripts/populate-toolchain-manifest.mjs win32-x64",
     "smoke:compile": "node scripts/smoke-compile.mjs",
-    "predist:win": "npm run prune:toolchain",
+    "predist:win": "npm run prune:toolchain && npm run manifest:win && npm run verify:toolchains -- win32-x64",
     "notices": "node scripts/generate-third-party-notices.mjs"
   },
   "devDependencies": {

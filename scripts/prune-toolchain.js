@@ -77,8 +77,25 @@ function remove(p, reason) {
   if (APPLY) fs.rmSync(p, { recursive: true, force: true });
 }
 
-// A) docs / i18n
-for (const d of DOC_DIRS) remove(path.join(root, d), 'docs/i18n');
+// A) docs / i18n — but NEVER the redistribution license texts. avr-gcc/binutils ship
+// COPYING, COPYING3, COPYING.RUNTIME, COPYING.LIB etc. under share/doc; these are the
+// verbatim GPL/LGPL texts we are legally obliged to redistribute alongside the binaries.
+// Blanket-deleting share/doc silently strips them, so walk and keep license-ish files.
+const LICENSE_FILE_RE = /^(copying|licen[cs]e|notice|authors|copyright)([.\-_].*)?$/i;
+function removeDocsPreservingLicenses(dir, reason) {
+  if (!fs.existsSync(dir)) return;
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      removeDocsPreservingLicenses(full, reason);
+      // Drop the directory only once it holds nothing we chose to keep.
+      if (APPLY && fs.existsSync(full) && fs.readdirSync(full).length === 0) fs.rmdirSync(full);
+    } else if (!LICENSE_FILE_RE.test(entry.name)) {
+      remove(full, reason);
+    }
+  }
+}
+for (const d of DOC_DIRS) removeDocsPreservingLicenses(path.join(root, d), 'docs/i18n');
 
 // B) debug binaries
 for (const f of fs.readdirSync(path.join(root, 'bin'))) {

@@ -26,7 +26,12 @@ export function loadProjectIntoStore(project: ProjectFileDTO): void {
       wires: circuit.wires ?? [],
       junctions: circuit.junctions ?? [],
       selectedIds: [],
+      pendingWireFrom: null,
+      placementKind: null,
     },
+    // Opening a project starts a fresh document; undo must not step back into the
+    // previous project's topology.
+    history: { past: [], future: [] },
   }));
 }
 

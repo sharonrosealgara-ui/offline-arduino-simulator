@@ -375,11 +375,26 @@ export class CircuitRuntime {
     }
   }
 
+  /**
+   * A floating input is only worth reporting when the pin is actually part of the user's
+   * circuit.
+   *
+   * Every ATmega328P pin resets to INPUT with no pull-up, so "input mode + floating net"
+   * is true for every pin the sketch has not configured. On a Blink circuit that produced
+   * 19 identical warnings — noise that buries the diagnostics that matter and makes a
+   * correct circuit look broken. An unwired header pin is simply unused, not a defect.
+   *
+   * So: warn only when the pin's net contains something besides the pin itself, i.e. the
+   * student wired it to a component but gave the node no defined level (a button with no
+   * pull-up being the classic case this is meant to catch).
+   */
   private checkFloatingInputs(floatingNets: Set<string>): void {
     for (const binding of this.netlist.boardPins) {
       const mode = this.driveModeByBoardPin.get(binding.boardPin);
       const id = `FLOATING_INPUT:${binding.boardPin}`;
-      if (mode === 'input' && floatingNets.has(binding.netId)) {
+      const net = this.netlist.nets.find((n) => n.id === binding.netId);
+      const isWired = (net?.terminals.length ?? 0) > 1;
+      if (isWired && mode === 'input' && floatingNets.has(binding.netId)) {
         this.upsertDiagnostic({
           id,
           severity: 'warning',

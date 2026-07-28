@@ -11,8 +11,8 @@ export interface StarterTemplate {
   title: string;
   description: string;
   concepts: string[];
-  /** Emoji glyph for the card (no image assets → stays offline). */
-  glyph: string;
+  /** Icon key for the card. Resolved to a lucide icon by the modal — no emoji, no image assets. */
+  icon: 'blink' | 'analog' | 'motion' | 'display';
   ino: string;
   circuit: ProjectCircuit;
 }
@@ -33,7 +33,7 @@ export const STARTER_TEMPLATES: StarterTemplate[] = [
     title: '01. Blink LED',
     description: 'Toggle the built-in Pin 13 LED once per second — the canonical “hello world” of hardware.',
     concepts: ['pinMode', 'digitalWrite', 'delay'],
-    glyph: '💡',
+    icon: 'blink',
     ino: `void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
 }
@@ -45,7 +45,49 @@ void loop() {
   delay(500);
 }
 `,
-    circuit: { schemaVersion: 1, components: [uno()], wires: [], junctions: [] },
+    // D13 drives the board's built-in L LED, and this template also wires an external
+    // LED through a 220 Ω series resistor to the same pin — so the example demonstrates a
+    // complete circuit path, not just the on-board indicator.
+    circuit: {
+      schemaVersion: 1,
+      components: [
+        uno(),
+        { id: 'r1', kind: 'resistor', x: 470, y: 300, rotation: 0, label: '220 Ω', properties: { ohms: 220 } },
+        {
+          id: 'led1',
+          kind: 'led',
+          x: 600,
+          y: 300,
+          rotation: 0,
+          label: 'LED',
+          properties: { color: 'red', forwardV: 2.0, dynamicOhms: 10, ratedMilliAmps: 20 },
+        },
+      ],
+      wires: [
+        {
+          id: 'w1',
+          from: { componentId: 'uno1', terminalId: 'D13' },
+          to: { componentId: 'r1', terminalId: 'a' },
+          colorRole: 'signal-yellow',
+          waypoints: [],
+        },
+        {
+          id: 'w2',
+          from: { componentId: 'r1', terminalId: 'b' },
+          to: { componentId: 'led1', terminalId: 'anode' },
+          colorRole: 'signal-yellow',
+          waypoints: [],
+        },
+        {
+          id: 'w3',
+          from: { componentId: 'led1', terminalId: 'cathode' },
+          to: { componentId: 'uno1', terminalId: 'GND' },
+          colorRole: 'ground-black',
+          waypoints: [],
+        },
+      ],
+      junctions: [],
+    },
   },
 
   {
@@ -53,7 +95,7 @@ void loop() {
     title: '02. Potentiometer & PWM',
     description: 'Read a 10k pot on A0 and dim an LED on PWM pin 9 with analogWrite().',
     concepts: ['analogRead', 'analogWrite', 'scaling'],
-    glyph: '🎚️',
+    icon: 'analog',
     ino: `const int POT_PIN = A0;
 const int LED_PIN = 9;   // PWM-capable
 
@@ -73,7 +115,7 @@ void loop() {
         uno(),
         { id: 'pot1', kind: 'potentiometer', x: 520, y: 90, rotation: 0, label: '10k Pot', properties: { ohms: 10000, initialPosition: 0.5 } },
         { id: 'r1', kind: 'resistor', x: 470, y: 300, rotation: 0, label: '220Ω', properties: { ohms: 220 } },
-        { id: 'led1', kind: 'led', x: 600, y: 300, rotation: 0, label: 'LED', properties: { color: 'amber' } },
+        { id: 'led1', kind: 'led', x: 600, y: 300, rotation: 0, label: 'LED', properties: { color: 'yellow' } },
       ],
       wires: [
         { id: 'w1', from: { componentId: 'uno1', terminalId: '5V' }, to: { componentId: 'pot1', terminalId: 'a' }, colorRole: 'vcc-red', waypoints: [] },
@@ -92,7 +134,7 @@ void loop() {
     title: '03. Servo Motor Sweep',
     description: 'Sweep a servo on Pin 9 from 0° to 180° and back using the Servo library.',
     concepts: ['Servo library', 'for loops', 'pulse timing'],
-    glyph: '🔄',
+    icon: 'motion',
     ino: `#include <Servo.h>
 
 Servo classroomServo;
@@ -126,7 +168,7 @@ void loop() {
     title: '04. LCD 1602 Display',
     description: 'Print two lines to a 16×2 HD44780 LCD in 4-bit mode with the LiquidCrystal library.',
     concepts: ['LiquidCrystal', 'HD44780 4-bit', 'lcd.print'],
-    glyph: '📟',
+    icon: 'display',
     ino: `#include <LiquidCrystal.h>
 
 LiquidCrystal lcd(12, 11, 5, 4, 3, 2);

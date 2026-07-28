@@ -94,62 +94,159 @@ button {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  /* The workbench manages its own overflow. Without this, a command bar wider than the
+     window stretches the whole shell and pushes the inspector off-screen. */
+  width: 100%;
+  overflow: hidden;
 }
 
 .commandBar {
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 48px;
+  min-height: 48px;
   padding: 0 12px;
   background: var(--bg-panel);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+  /* Wrap rather than overflow: on a 1366-wide classroom laptop the full verb set does not
+     fit on one line, and a horizontal scrollbar on the primary toolbar is worse than a
+     second row. */
+  flex-wrap: wrap;
+  row-gap: 4px;
+  padding-block: 5px;
 }
 
 .commandBar__group {
   display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
 }
 
 .commandBar__spacer {
   flex: 1;
 }
 
+/* --- Status bar ---------------------------------------------------------------- */
 .statusBar {
   display: flex;
   align-items: center;
-  gap: 12px;
-  height: 24px;
-  padding: 0 12px;
+  gap: 4px;
+  min-height: 26px;
+  padding: 0 10px;
   font-size: 12px;
   color: var(--text-secondary);
   background: var(--bg-panel);
   border-top: 1px solid var(--border);
   flex-shrink: 0;
+  overflow-x: auto;
+  white-space: nowrap;
 }
 
-.statusBar__offlineReady {
+.statusBar__spacer {
+  flex: 1;
+  min-width: 8px;
+}
+
+.statusItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+.statusItem__label {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.statusItem__label:not(:empty)::after {
+  content: ':';
+}
+.statusItem__value {
+  font-variant-numeric: tabular-nums;
+}
+/* Tone is carried by an icon + wording as well as colour, never colour alone. */
+.statusItem--good {
   color: var(--success);
+}
+.statusItem--busy {
+  color: var(--accent);
+}
+.statusItem--warn {
+  color: var(--warning);
+}
+.statusItem--bad {
+  color: var(--danger);
   font-weight: 600;
 }
 
-/* --- Workbench grid: editor | splitter | canvas over a full-width bottom pane --- */
+/* --- Workbench grid ------------------------------------------------------------ */
+/* library | editor | splitter | 3D workspace | inspector, over a full-width bottom pane */
 .workbench {
-  --editor-width: 46%;
+  --editor-width: 42%;
   --bottom-height: 240px;
+  --library-width: 212px;
+  --inspector-width: 268px;
   display: grid;
-  grid-template-columns: minmax(400px, var(--editor-width)) 6px minmax(460px, 1fr);
-  grid-template-rows: minmax(320px, 1fr) 6px minmax(160px, var(--bottom-height));
+  /* `minmax(0, …)` on both flexible tracks, NOT a px minimum.
+     A px minimum on the editor and canvas tracks makes the grid wider than its container
+     whenever library + editor% + inspector leaves less than that minimum — the grid then
+     overflows and pushes the inspector off-screen entirely. The splitter already clamps
+     the editor to 25–70%, which is what actually keeps both panes usable. */
+  grid-template-columns:
+    minmax(0, var(--library-width))
+    minmax(0, var(--editor-width))
+    6px
+    minmax(0, 1fr)
+    minmax(0, var(--inspector-width));
+  grid-template-rows: minmax(280px, 1fr) 6px minmax(140px, var(--bottom-height));
   flex: 1;
-  min-width: 1024px;
-  min-height: 648px;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.workbench[data-library='off'] {
+  --library-width: 0px;
+}
+.workbench[data-inspector='off'] {
+  --inspector-width: 0px;
+}
+
+/* Classroom laptops at 1366x768 and below: shed the side panels rather than force a
+   horizontal scrollbar through the whole workbench. */
+@media (max-width: 1500px) {
+  .workbench {
+    --library-width: 188px;
+    --inspector-width: 232px;
+  }
+}
+@media (max-width: 1240px) {
+  .workbench {
+    --library-width: 0px;
+    --inspector-width: 0px;
+  }
+  .libraryPane,
+  .inspectorPane {
+    display: none;
+  }
+}
+
+.libraryPane {
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-panel);
+  border-right: 1px solid var(--border);
   overflow: hidden;
 }
 
 .editorPane {
-  grid-column: 1;
+  grid-column: 2;
   grid-row: 1;
   min-width: 0;
   min-height: 0;
@@ -160,12 +257,12 @@ button {
 }
 
 .columnSplitter {
-  grid-column: 2;
+  grid-column: 3;
   grid-row: 1;
 }
 
 .canvasPane {
-  grid-column: 3;
+  grid-column: 4;
   grid-row: 1;
   min-width: 0;
   min-height: 0;
@@ -175,13 +272,25 @@ button {
   overflow: hidden;
 }
 
+.inspectorPane {
+  grid-column: 5;
+  grid-row: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-panel);
+  border-left: 1px solid var(--border);
+  overflow: hidden;
+}
+
 .rowSplitter {
-  grid-column: 1 / 4;
+  grid-column: 1 / 6;
   grid-row: 2;
 }
 
 .bottomPane {
-  grid-column: 1 / 4;
+  grid-column: 1 / 6;
   grid-row: 3;
   min-width: 0;
   min-height: 0;

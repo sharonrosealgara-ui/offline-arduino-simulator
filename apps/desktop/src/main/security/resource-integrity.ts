@@ -77,6 +77,45 @@ export async function verifyToolchainIntegrity(
   }
 }
 
+/**
+ * Session-memoized wrapper around {@link verifyToolchainIntegrity}.
+ *
+ * The full manifest is ~1100 files / ~103 MB; hashing it costs ~1.7 s on a warm cache and
+ * considerably more on a cold classroom disk. The spec requires verification "before the
+ * Compile action is enabled" / "at first compiler use" — NOT once per compile. Running it
+ * on every Verify click added that cost to every interaction for no additional security:
+ * an attacker able to swap a toolchain binary mid-session can equally swap it between the
+ * hash check and the spawn.
+ *
+ * The result is cached per (toolchainRoot + manifest identity). A failure is NOT cached, so
+ * a repaired installation recovers without restarting the app.
+ */
+const verifiedRoots = new Map<string, Promise<void>>();
+
+export async function ensureToolchainIntegrity(
+  toolchainRoot: string,
+  manifest: ToolchainManifest,
+  exeSuffix: string,
+): Promise<void> {
+  const key = `${toolchainRoot}\u0000${manifest.toolchainVersion}\u0000${manifest.files.length}`;
+  const existing = verifiedRoots.get(key);
+  if (existing) return existing;
+
+  const pending = verifyToolchainIntegrity(toolchainRoot, manifest, exeSuffix);
+  verifiedRoots.set(key, pending);
+  try {
+    await pending;
+  } catch (error) {
+    verifiedRoots.delete(key); // never cache a failure — let a repaired install retry
+    throw error;
+  }
+}
+
+/** Test seam: forget every memoized verification result. */
+export function resetToolchainIntegrityCache(): void {
+  verifiedRoots.clear();
+}
+
 export async function loadToolchainManifest(toolchainRoot: string): Promise<ToolchainManifest> {
   const manifestPath = path.join(toolchainRoot, 'manifest.json');
   if (!(await fileExists(manifestPath))) {

@@ -1,9 +1,14 @@
 /**
  * Starter examples modal. One-click loads a bundled template (code + wiring) into the
  * workspace via loadProjectIntoStore — no filesystem round-trip, fully offline.
+ *
+ * This dialog previously carried Tailwind utility classes (`fixed inset-0 z-50 …`) while
+ * the project has no Tailwind dependency, build step, or config — so every one of them was
+ * inert and the modal rendered as unstyled HTML. It now uses the project's own design
+ * system from styles/workbench.css.
  */
 import { useEffect, useRef } from 'react';
-import { X, BookOpen } from 'lucide-react';
+import { X, BookOpen, Lightbulb, SlidersHorizontal, RotateCw, MonitorSmartphone } from 'lucide-react';
 import { STARTER_TEMPLATES, templateToProjectFile, type StarterTemplate } from './examples-data';
 import { loadProjectIntoStore } from '../project-bridge';
 
@@ -13,6 +18,14 @@ interface ExamplesModalProps {
   /** Override load behavior (tests/storybook). Defaults to loading into the app store. */
   onLoad?(template: StarterTemplate): void;
 }
+
+/** Icons rather than emoji: emoji render differently per OS and read as unprofessional. */
+const ICONS: Record<StarterTemplate['icon'], JSX.Element> = {
+  blink: <Lightbulb size={18} aria-hidden />,
+  analog: <SlidersHorizontal size={18} aria-hidden />,
+  motion: <RotateCw size={18} aria-hidden />,
+  display: <MonitorSmartphone size={18} aria-hidden />,
+};
 
 export function ExamplesModal({ open, onClose, onLoad }: ExamplesModalProps): JSX.Element | null {
   const panelRef = useRef<HTMLDivElement | null>(null);
@@ -36,59 +49,59 @@ export function ExamplesModal({ open, onClose, onLoad }: ExamplesModalProps): JS
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Starter examples"
-      onClick={onClose}
-    >
+    <div className="modalScrim" role="presentation" onClick={onClose}>
       <div
         ref={panelRef}
         tabIndex={-1}
+        className="modalPanel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="examples-title"
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-3xl max-h-[85vh] overflow-auto rounded-xl border border-zinc-800 bg-zinc-900 text-zinc-100 shadow-2xl outline-none"
       >
-        <header className="flex items-center justify-between px-5 py-4 border-b border-zinc-800">
+        <header className="modalHeader">
           <div>
-            <h2 className="flex items-center gap-2 text-lg font-semibold">
-              <BookOpen size={18} /> Starter Examples
+            <h2 className="modalHeader__title" id="examples-title">
+              <BookOpen size={18} aria-hidden /> Starter Examples
             </h2>
-            <p className="mt-0.5 text-xs text-emerald-400">Works completely offline — loads code + wiring in one click.</p>
+            <p className="modalHeader__subtitle">
+              Works completely offline — loads the sketch and its wiring in one click.
+            </p>
           </div>
-          <button
-            onClick={onClose}
-            aria-label="Close"
-            className="grid h-9 w-9 place-items-center rounded-md hover:bg-zinc-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
-          >
-            <X size={16} />
+          <button type="button" className="modalHeader__close" onClick={onClose} aria-label="Close examples">
+            <X size={16} aria-hidden />
           </button>
         </header>
 
-        <ul className="grid grid-cols-1 gap-3 p-5 sm:grid-cols-2">
-          {STARTER_TEMPLATES.map((t) => (
-            <li key={t.id} className="flex flex-col rounded-lg border border-zinc-800 bg-zinc-800/40 p-4 transition-colors hover:border-zinc-600">
-              <div className="flex items-start gap-3">
-                <span className="text-2xl leading-none" aria-hidden>{t.glyph}</span>
-                <div className="min-w-0">
-                  <h3 className="font-medium">{t.title}</h3>
-                  <p className="mt-1 text-sm text-zinc-400">{t.description}</p>
-                </div>
-              </div>
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {t.concepts.map((c) => (
-                  <span key={c} className="rounded-full bg-zinc-700/60 px-2 py-0.5 text-[11px] text-zinc-300">{c}</span>
-                ))}
-              </div>
-              <button
-                onClick={() => load(t)}
-                className="mt-4 inline-flex h-9 items-center justify-center gap-2 rounded-md bg-sky-600 text-sm font-semibold text-white transition-colors hover:bg-sky-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
-              >
-                Load into workspace
-              </button>
-            </li>
-          ))}
-        </ul>
+        <div className="modalBody">
+          <ul className="exampleGrid">
+            {STARTER_TEMPLATES.map((t) => (
+              <li key={t.id}>
+                <button type="button" className="exampleCard" onClick={() => load(t)}>
+                  <span style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                    <span style={{ flexShrink: 0, marginTop: 2 }}>{ICONS[t.icon]}</span>
+                    <span style={{ minWidth: 0 }}>
+                      <span className="exampleCard__name" style={{ display: 'block' }}>
+                        {t.title}
+                      </span>
+                      <span className="exampleCard__desc" style={{ display: 'block' }}>
+                        {t.description}
+                      </span>
+                    </span>
+                  </span>
+                  <span className="exampleCard__tags">
+                    {t.concepts.map((c) => (
+                      <span key={c} className="tagChip">
+                        {c}
+                      </span>
+                    ))}
+                  </span>
+                  <span className="exampleCard__cta">Load into workspace →</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
     </div>
   );

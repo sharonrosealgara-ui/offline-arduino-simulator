@@ -53,6 +53,8 @@ export function MonacoSketchEditor(): JSX.Element {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const modelRef = useRef<monaco.editor.ITextModel | null>(null);
+  /** True while an externally-loaded sketch is being written into the model. */
+  const applyingExternal = useRef(false);
   // State (not just a ref) so useMonacoDiagnostics re-runs once the editor mounts.
   const [editorInstance, setEditorInstance] = useState<monaco.editor.IStandaloneCodeEditor | null>(null);
 
@@ -80,7 +82,37 @@ export function MonacoSketchEditor(): JSX.Element {
     setEditorInstance(editor);
 
     const sub = model.onDidChangeContent(() => {
+      // Suppress the echo while we are writing an externally-loaded sketch into the model,
+      // otherwise loading an example would immediately mark the fresh project dirty and
+      // bump sourceRevision for a change the user never made.
+      if (applyingExternal.current) return;
       useAppStore.getState().actions.setSketch(model.getValue());
+    });
+
+    // Store -> editor. Content previously flowed one way only (editor -> store), so
+    // loadProjectIntoStore (Examples, Open Project) replaced the store's sketch and the
+    // circuit while the editor kept displaying the previous text. Verify then compiled
+    // source that was not the source on screen — the worst possible failure mode for a
+    // teaching tool. This pushes external changes back into the model.
+    const unsubscribe = useAppStore.subscribe((state, previous) => {
+      if (state.project.sketch === previous.project.sketch) return;
+      const current = modelRef.current;
+      if (!current || current.isDisposed()) return;
+      // Equal means the change originated from this editor; nothing to apply.
+      if (current.getValue() === state.project.sketch) return;
+
+      applyingExternal.current = true;
+      try {
+        // pushEditOperations rather than setValue so the replacement joins the undo stack
+        // instead of destroying it.
+        current.pushEditOperations(
+          [],
+          [{ range: current.getFullModelRange(), text: state.project.sketch }],
+          () => null,
+        );
+      } finally {
+        applyingExternal.current = false;
+      }
     });
 
     // Throttled layout on container resize (spec §2.2: editor.layout only after a
@@ -94,6 +126,7 @@ export function MonacoSketchEditor(): JSX.Element {
 
     return () => {
       sub.dispose();
+      unsubscribe();
       resizeObserver.disconnect();
       cancelAnimationFrame(raf);
       setEditorInstance(null);

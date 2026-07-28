@@ -1,29 +1,47 @@
 /**
- * Maps the authoring netlist (useCircuit) into 3D and overlays live simulation state
- * (simulation.components display deltas). Renders INSIDE <CircuitCanvas3D>'s <Canvas>.
+ * Renders the authoring netlist in 3D and overlays live simulation state, and is where all
+ * direct manipulation of the circuit happens.
  *
- * - Terminal anchor points come from the trusted component registry (same source the
- *   2D canvas and the netlist compiler use), so wires attach exactly where the 2D
- *   schematic says the terminals are.
- * - Live state (LED brightness, servo angle, pot value, button press, LCD rows) is
- *   read per-component via narrow Zustand selectors; per-frame smoothing happens in
- *   useFrame with THREE.MathUtils.damp so React never re-renders at frame rate.
- * - 100% procedural geometry — zero external assets, zero network requests.
+ * ARCHITECTURE
+ *  - Terminal anchors come from the trusted component registry — the same source the 2D
+ *    canvas and the netlist compiler use — so a wire drawn here is electrically the wire
+ *    the solver sees. Board terminals additionally resolve through ./hardware/uno-geometry
+ *    so they land on the physical header pin rather than the schematic's abstract row.
+ *  - Live state (LED brightness, servo angle, pot wiper, button press, LCD rows) is read
+ *    per component through narrow Zustand selectors; per-frame smoothing runs in useFrame
+ *    with THREE.MathUtils.damp so React never re-renders at frame rate.
+ *  - 100% procedural geometry. No external assets, no network requests.
+ *
+ * CAMERA VS DRAG
+ *  OrbitControls and component dragging both want the left mouse button. Dragging disables
+ *  `controls.enabled` for the duration and restores it on pointerup (including when the
+ *  pointer is released outside the canvas), so the two never fight.
  */
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { useFrame } from '@react-three/fiber';
-import { Html } from '@react-three/drei';
+import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import {
   getComponentDefinition,
   terminalKey,
 } from '@offline-arduino/simulator/circuit-model/component-registry';
-import type { CircuitComponent, Point, WireColorRole } from '@offline-arduino/contracts/circuit';
+import type { CircuitComponent, Point, TerminalRef, WireColorRole } from '@offline-arduino/contracts/circuit';
 import type { ComponentDisplayDelta } from '@offline-arduino/contracts/simulator';
 import { useAppStore, useCircuit } from '../../state/store';
+import { createLcdScreenTexture, createTextPlateTexture } from './hardware/labels';
+import { useDisposableTexture } from './hardware/useDisposableTexture';
+import { resistorBands, formatOhms } from './hardware/resistor-bands';
+import { PCB_TOP, unoPinPosition } from './hardware/uno-geometry';
 
+/** Schematic units → world inches. */
 const SCALE = 0.012;
+/** Height wires float above the bench. */
 const WIRE_LIFT = 0.14;
+/** Radius of the clickable terminal anchor. */
+const TERMINAL_RADIUS = 0.028;
+
+const SELECTED_COLOR = '#38bdf8';
+const HOVER_COLOR = '#7dd3fc';
+const WIRE_PENDING_COLOR = '#facc15';
 
 const WIRE_HEX: Record<WireColorRole, string> = {
   'vcc-red': '#d1352b',
@@ -43,10 +61,23 @@ function terminal2D(c: CircuitComponent, tx: number, ty: number): Point {
   return { x: c.x + tx * cos - ty * sin, y: c.y + tx * sin + ty * cos };
 }
 
-export function DynamicNetlist3D(): JSX.Element {
-  const { components, wires } = useCircuit();
+function useComponentDelta(id: string): ComponentDisplayDelta | undefined {
+  return useAppStore((s) => s.simulation.components[id]);
+}
 
-  // Center the 3D world on the Uno so the board sits at the origin.
+// =======================================================================================
+// Root
+// =======================================================================================
+export interface DynamicNetlist3DProps {
+  quality?: 'low' | 'high';
+}
+
+export function DynamicNetlist3D({ quality = 'high' }: DynamicNetlist3DProps): JSX.Element {
+  const { components, wires, selectedIds, pendingWireFrom } = useCircuit();
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const high = quality === 'high';
+
+  // Centre the world on the board so it sits at the origin, matching <UnoR3Board/>.
   const origin = useMemo(() => {
     const uno = components.find((c) => c.kind === 'uno-r3');
     return { x: uno?.x ?? 300, y: uno?.y ?? 250 };
@@ -57,19 +88,34 @@ export function DynamicNetlist3D(): JSX.Element {
     [origin],
   );
 
-  // Every terminal's 3D anchor, keyed identically to the electrical netlist.
+  /**
+   * Every terminal's 3D anchor, keyed exactly as the electrical netlist keys it.
+   *
+   * Board terminals are special-cased to their real header-pin coordinates; without this a
+   * wire to D13 would attach to the schematic's abstract pin row, floating in space beside
+   * the board instead of touching the pin a student can see.
+   */
   const terminalPos = useMemo(() => {
     const map = new Map<string, THREE.Vector3>();
     for (const c of components) {
       const def = getComponentDefinition(c.kind);
       if (!def) continue;
       for (const t of def.terminals) {
-        const p2 = terminal2D(c, t.x, t.y);
-        map.set(terminalKey(c.id, t.id), to3D(p2, WIRE_LIFT));
+        if (c.kind === 'uno-r3') {
+          const physical = unoPinPosition(t.id);
+          if (physical) {
+            map.set(terminalKey(c.id, t.id), new THREE.Vector3(physical.x, PCB_TOP + 0.3, physical.z));
+            continue;
+          }
+        }
+        map.set(terminalKey(c.id, t.id), to3D(terminal2D(c, t.x, t.y), WIRE_LIFT));
       }
     }
     return map;
   }, [components, to3D]);
+
+  const wiring = pendingWireFrom !== null;
+  const selected = useMemo(() => new Set(selectedIds), [selectedIds]);
 
   return (
     <group name="dynamic-netlist">
@@ -78,26 +124,83 @@ export function DynamicNetlist3D(): JSX.Element {
         const b = terminalPos.get(terminalKey(w.to.componentId, w.to.terminalId));
         if (!a || !b) return null;
         const mids = w.waypoints.map((wp) => to3D(wp, WIRE_LIFT));
-        return <NetWire key={w.id} points={[a, ...mids, b]} color={WIRE_HEX[w.colorRole]} />;
+        return (
+          <NetWire
+            key={w.id}
+            id={w.id}
+            points={[a, ...mids, b]}
+            color={selected.has(w.id) ? SELECTED_COLOR : WIRE_HEX[w.colorRole]}
+            selected={selected.has(w.id)}
+            high={high}
+          />
+        );
+      })}
+
+      {/* Preview of the wire currently being drawn, anchored to the first terminal. */}
+      {pendingWireFrom && (
+        <PendingWirePreview
+          anchor={terminalPos.get(terminalKey(pendingWireFrom.componentId, pendingWireFrom.terminalId))}
+        />
+      )}
+
+      {/* Terminal anchors. Shown while wiring (so every legal target is visible) or when
+          hovering a part (so its pins can be discovered without entering wiring mode). */}
+      {components.map((c) => {
+        const def = getComponentDefinition(c.kind);
+        if (!def) return null;
+        const show = wiring || hoveredId === c.id || selected.has(c.id);
+        if (!show) return null;
+        return def.terminals.map((t) => {
+          const position = terminalPos.get(terminalKey(c.id, t.id));
+          if (!position) return null;
+          const isPending =
+            pendingWireFrom?.componentId === c.id && pendingWireFrom?.terminalId === t.id;
+          return (
+            <TerminalAnchor
+              key={`${c.id}:${t.id}`}
+              componentId={c.id}
+              terminalId={t.id}
+              label={t.label}
+              role={t.role}
+              position={position}
+              pending={isPending}
+            />
+          );
+        });
       })}
 
       {components.map((c) =>
         c.kind === 'uno-r3' ? null : (
-          <ComponentNode key={c.id} component={c} position={to3D(c, 0).toArray() as [number, number, number]} />
+          <ComponentNode
+            key={c.id}
+            component={c}
+            origin={origin}
+            selected={selected.has(c.id)}
+            hovered={hoveredId === c.id}
+            onHoverChange={setHoveredId}
+            high={high}
+          />
         ),
       )}
     </group>
   );
 }
 
+// =======================================================================================
+// Wires
+// =======================================================================================
 function NetWire({
+  id,
   points,
   color,
-  radius = 0.02,
+  selected,
+  high,
 }: {
+  id: string;
   points: THREE.Vector3[];
   color: string;
-  radius?: number;
+  selected: boolean;
+  high: boolean;
 }): JSX.Element {
   const curve = useMemo(() => {
     if (points.length < 2) return null;
@@ -107,7 +210,7 @@ function NetWire({
       const q = points[i + 1];
       dense.push(p);
       const mid = p.clone().add(q).multiplyScalar(0.5);
-      // Slight sag between anchor points so wires read as physical jumpers.
+      // Slight sag between anchors so wires read as physical jumpers, not laser beams.
       mid.y -= Math.min(0.45, p.distanceTo(q) * 0.18);
       dense.push(mid);
     }
@@ -116,58 +219,336 @@ function NetWire({
   }, [points]);
 
   if (!curve) return <group />;
+
   return (
-    <mesh castShadow receiveShadow>
-      <tubeGeometry args={[curve, 48, radius, 10, false]} />
+    <mesh
+      castShadow={high}
+      receiveShadow={high}
+      onClick={(event) => {
+        event.stopPropagation();
+        useAppStore.getState().actions.selectIds([id]);
+      }}
+    >
+      {/* Fewer tubular segments in low-spec: a jumper reads fine at 24. */}
+      <tubeGeometry args={[curve, high ? 40 : 20, selected ? 0.026 : 0.02, high ? 8 : 5, false]} />
       <meshPhysicalMaterial
         color={color}
         roughness={0.85}
         metalness={0}
-        clearcoat={0.3}
+        clearcoat={high ? 0.3 : 0}
         clearcoatRoughness={0.6}
-        sheen={0.4}
+        emissive={selected ? SELECTED_COLOR : '#000000'}
+        emissiveIntensity={selected ? 0.35 : 0}
       />
     </mesh>
   );
 }
 
-function useComponentDelta(id: string): ComponentDisplayDelta | undefined {
-  return useAppStore((s) => s.simulation.components[id]);
-}
-
-interface NodeProps {
-  component: CircuitComponent;
-  position: [number, number, number];
-}
-
-function ComponentNode({ component, position }: NodeProps): JSX.Element {
-  const yaw = -(component.rotation * Math.PI) / 180;
+/** Dashed marker at the first-picked terminal, so an in-progress wire is unmistakable. */
+function PendingWirePreview({ anchor }: { anchor: THREE.Vector3 | undefined }): JSX.Element | null {
+  const ref = useRef<THREE.Mesh>(null);
+  useFrame(({ clock }) => {
+    if (ref.current) {
+      const pulse = 1 + Math.sin(clock.elapsedTime * 6) * 0.18;
+      ref.current.scale.setScalar(pulse);
+    }
+  });
+  if (!anchor) return null;
   return (
-    <group position={position} rotation={[0, yaw, 0]}>
-      {renderKind(component)}
+    <mesh ref={ref} position={anchor}>
+      <sphereGeometry args={[TERMINAL_RADIUS * 1.8, 16, 12]} />
+      <meshBasicMaterial color={WIRE_PENDING_COLOR} transparent opacity={0.75} depthTest={false} />
+    </mesh>
+  );
+}
+
+// =======================================================================================
+// Terminals
+// =======================================================================================
+const TERMINAL_ROLE_COLOR: Record<string, string> = {
+  power: '#ef4444',
+  ground: '#94a3b8',
+  signal: '#38bdf8',
+  passive: '#a3e635',
+};
+
+function TerminalAnchor({
+  componentId,
+  terminalId,
+  label,
+  role,
+  position,
+  pending,
+}: {
+  componentId: string;
+  terminalId: string;
+  label: string;
+  role: string;
+  position: THREE.Vector3;
+  pending: boolean;
+}): JSX.Element {
+  const [hovered, setHovered] = useState(false);
+
+  const pick = useCallback(
+    (event: ThreeEvent<MouseEvent>) => {
+      event.stopPropagation();
+      const terminal: TerminalRef = { componentId, terminalId };
+      // Colour the wire by what it connects: power red, ground black, everything else
+      // yellow. Students read wire colour as meaning, so it should mean something.
+      const colorRole: WireColorRole =
+        role === 'power' ? 'vcc-red' : role === 'ground' ? 'ground-black' : 'signal-yellow';
+      useAppStore.getState().actions.pickTerminal(terminal, colorRole);
+    },
+    [componentId, terminalId, role],
+  );
+
+  const color = pending ? WIRE_PENDING_COLOR : hovered ? HOVER_COLOR : TERMINAL_ROLE_COLOR[role] ?? '#38bdf8';
+
+  return (
+    <group position={position}>
+      <mesh
+        onClick={pick}
+        onPointerOver={(e) => {
+          e.stopPropagation();
+          setHovered(true);
+          document.body.style.cursor = 'crosshair';
+        }}
+        onPointerOut={() => {
+          setHovered(false);
+          document.body.style.cursor = '';
+        }}
+      >
+        <sphereGeometry args={[hovered ? TERMINAL_RADIUS * 1.5 : TERMINAL_RADIUS, 12, 10]} />
+        <meshBasicMaterial color={color} transparent opacity={hovered || pending ? 1 : 0.85} />
+      </mesh>
+      {hovered && <FloatingLabel text={label} y={0.09} width={0.5} />}
     </group>
   );
 }
 
-function renderKind(c: CircuitComponent): JSX.Element {
+// =======================================================================================
+// Floating text
+// =======================================================================================
+/**
+ * A camera-facing text plate. Used for terminal names and component labels.
+ *
+ * Canvas texture rather than drei's <Html>: Html injects real DOM nodes that are laid out
+ * every frame and cannot be occluded correctly by geometry. For a scene that may show
+ * dozens of pin labels at once, a billboarded plane is dramatically cheaper.
+ */
+function FloatingLabel({
+  text,
+  y,
+  width,
+  color = '#e8edf4',
+  background = 'rgba(9,12,17,0.86)',
+}: {
+  text: string;
+  y: number;
+  width: number;
+  color?: string;
+  background?: string;
+}): JSX.Element {
+  const ref = useRef<THREE.Mesh>(null);
+  const height = width * 0.28;
+
+  const texture = useDisposableTexture(
+    () =>
+      createTextPlateTexture(text, {
+        widthInches: width,
+        heightInches: height,
+        color,
+        background,
+        fontScale: 0.62,
+      }),
+    [text, width, height, color, background],
+  );
+
+  useFrame(({ camera }) => {
+    if (ref.current) ref.current.quaternion.copy(camera.quaternion);
+  });
+
+  return (
+    <mesh ref={ref} position={[0, y, 0]} renderOrder={999}>
+      <planeGeometry args={[width, height]} />
+      <meshBasicMaterial map={texture} transparent depthTest={false} toneMapped={false} />
+    </mesh>
+  );
+}
+
+// =======================================================================================
+// Component node — selection, hover, and dragging
+// =======================================================================================
+interface NodeProps {
+  component: CircuitComponent;
+  origin: { x: number; y: number };
+  selected: boolean;
+  hovered: boolean;
+  onHoverChange(id: string | null): void;
+  high: boolean;
+}
+
+/** Plane the drag is projected onto — the bench surface. */
+const DRAG_PLANE = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+
+function ComponentNode({ component, origin, selected, hovered, onHoverChange, high }: NodeProps): JSX.Element {
+  const { camera, gl } = useThree();
+  const controls = useThree((s) => s.controls) as { enabled: boolean } | null;
+  const dragging = useRef(false);
+  const movedThisDrag = useRef(false);
+  const grabOffset = useRef(new THREE.Vector3());
+
+  // Memoized: this array feeds the drag callbacks' dependency lists, so a fresh array on
+  // every render would rebuild them (and re-bind the pointer handlers) each frame.
+  const position = useMemo<[number, number, number]>(
+    () => [(component.x - origin.x) * SCALE, 0, (component.y - origin.y) * SCALE],
+    [component.x, component.y, origin.x, origin.y],
+  );
+  const yaw = -(component.rotation * Math.PI) / 180;
+
+  const pointerToWorld = useCallback(
+    (event: ThreeEvent<PointerEvent>): THREE.Vector3 | null => {
+      const rect = gl.domElement.getBoundingClientRect();
+      const ndc = new THREE.Vector2(
+        ((event.clientX - rect.left) / rect.width) * 2 - 1,
+        -((event.clientY - rect.top) / rect.height) * 2 + 1,
+      );
+      const raycaster = new THREE.Raycaster();
+      raycaster.setFromCamera(ndc, camera);
+      const hit = new THREE.Vector3();
+      return raycaster.ray.intersectPlane(DRAG_PLANE, hit) ? hit : null;
+    },
+    [camera, gl],
+  );
+
+  const onPointerDown = useCallback(
+    (event: ThreeEvent<PointerEvent>) => {
+      event.stopPropagation();
+      const actions = useAppStore.getState().actions;
+      actions.selectIds([component.id]);
+
+      const world = pointerToWorld(event);
+      if (!world) return;
+
+      dragging.current = true;
+      movedThisDrag.current = false;
+      grabOffset.current.set(world.x - position[0], 0, world.z - position[2]);
+
+      // Hand the camera back its button only after this drag ends.
+      if (controls) controls.enabled = false;
+      (event.target as Element | null)?.setPointerCapture?.(event.pointerId);
+    },
+    [component.id, controls, pointerToWorld, position],
+  );
+
+  const onPointerMove = useCallback(
+    (event: ThreeEvent<PointerEvent>) => {
+      if (!dragging.current) return;
+      event.stopPropagation();
+      const world = pointerToWorld(event);
+      if (!world) return;
+
+      const x = origin.x + (world.x - grabOffset.current.x) / SCALE;
+      const y = origin.y + (world.z - grabOffset.current.z) / SCALE;
+
+      // The first move of a drag is the undoable one: it pushes the pre-drag topology.
+      // Every later move coalesces into it, so one drag is one undo step.
+      useAppStore
+        .getState()
+        .actions.moveComponent(component.id, x, y, { coalesce: movedThisDrag.current });
+      movedThisDrag.current = true;
+    },
+    [component.id, origin, pointerToWorld],
+  );
+
+  const endDrag = useCallback(
+    (event: ThreeEvent<PointerEvent>) => {
+      if (!dragging.current) return;
+      dragging.current = false;
+      if (controls) controls.enabled = true;
+      (event.target as Element | null)?.releasePointerCapture?.(event.pointerId);
+    },
+    [controls],
+  );
+
+  return (
+    <group
+      position={position}
+      rotation={[0, yaw, 0]}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={endDrag}
+      onPointerCancel={endDrag}
+      onPointerOver={(e) => {
+        e.stopPropagation();
+        onHoverChange(component.id);
+        document.body.style.cursor = 'grab';
+      }}
+      onPointerOut={() => {
+        onHoverChange(null);
+        document.body.style.cursor = '';
+      }}
+    >
+      {renderKind(component, high)}
+      {(selected || hovered) && <SelectionRing selected={selected} />}
+      {(selected || hovered) && (
+        <FloatingLabel text={describe(component)} y={0.42} width={0.92} />
+      )}
+    </group>
+  );
+}
+
+/** Human-readable summary shown on hover/selection: name plus the value that matters. */
+function describe(c: CircuitComponent): string {
+  switch (c.kind) {
+    case 'resistor':
+      return `${c.label} · ${formatOhms(Number(c.properties.ohms ?? 220))}`;
+    case 'led':
+      return `${c.label} · ${String(c.properties.color ?? 'red')}`;
+    case 'potentiometer':
+      return `${c.label} · ${formatOhms(Number(c.properties.ohms ?? 10000))}`;
+    default:
+      return c.label;
+  }
+}
+
+function SelectionRing({ selected }: { selected: boolean }): JSX.Element {
+  return (
+    <mesh position={[0, 0.005, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      <ringGeometry args={[0.15, 0.19, 32]} />
+      <meshBasicMaterial
+        color={selected ? SELECTED_COLOR : HOVER_COLOR}
+        transparent
+        opacity={selected ? 0.95 : 0.5}
+        depthWrite={false}
+        side={THREE.DoubleSide}
+      />
+    </mesh>
+  );
+}
+
+function renderKind(c: CircuitComponent, high: boolean): JSX.Element {
   switch (c.kind) {
     case 'led':
-      return <Led3D id={c.id} color={typeof c.properties.color === 'string' ? c.properties.color : 'red'} />;
+      return <Led3D id={c.id} color={typeof c.properties.color === 'string' ? c.properties.color : 'red'} high={high} />;
     case 'resistor':
-      return <Resistor3D />;
+      return <Resistor3D ohms={Number(c.properties.ohms ?? 220)} high={high} />;
     case 'potentiometer':
-      return <Potentiometer3D id={c.id} />;
+      return <Potentiometer3D id={c.id} high={high} />;
     case 'servo':
-      return <Servo3D id={c.id} />;
+      return <Servo3D id={c.id} high={high} />;
     case 'lcd1602':
-      return <Lcd3D id={c.id} />;
+      return <Lcd3D id={c.id} high={high} />;
     case 'pushbutton':
-      return <Pushbutton3D id={c.id} />;
+      return <Pushbutton3D id={c.id} high={high} />;
     default:
       return <UnknownPart />;
   }
 }
 
+// =======================================================================================
+// Parts
+// =======================================================================================
 const LED_COLOR_HEX: Record<string, string> = {
   red: '#ff3b30',
   green: '#34d058',
@@ -176,7 +557,12 @@ const LED_COLOR_HEX: Record<string, string> = {
   white: '#f4f4f5',
 };
 
-function Led3D({ id, color }: { id: string; color: string }): JSX.Element {
+/**
+ * 5 mm through-hole LED with a real polarity indicator: the flat on the rim and the short
+ * lead are both on the cathode side, exactly as on the physical part. Getting this wrong
+ * teaches the wrong thing, so both cues are modelled rather than just tinting the dome.
+ */
+function Led3D({ id, color, high }: { id: string; color: string; high: boolean }): JSX.Element {
   const delta = useComponentDelta(id);
   const brightness = delta?.kind === 'led' ? delta.brightness : 0;
   const matRef = useRef<THREE.MeshStandardMaterial>(null);
@@ -185,60 +571,94 @@ function Led3D({ id, color }: { id: string; color: string }): JSX.Element {
   const emissive = useMemo(() => new THREE.Color(hex), [hex]);
 
   useFrame((_, dt) => {
-    const target = brightness * 3.4;
     if (matRef.current) {
-      matRef.current.emissiveIntensity = THREE.MathUtils.damp(matRef.current.emissiveIntensity, target, 14, dt);
+      matRef.current.emissiveIntensity = THREE.MathUtils.damp(
+        matRef.current.emissiveIntensity,
+        brightness * 3.4,
+        14,
+        dt,
+      );
     }
     if (lightRef.current) {
-      lightRef.current.intensity = THREE.MathUtils.damp(lightRef.current.intensity, brightness * 1.6, 14, dt);
+      lightRef.current.intensity = THREE.MathUtils.damp(lightRef.current.intensity, brightness * 1.4, 14, dt);
     }
   });
 
   return (
     <group>
-      <mesh castShadow position={[0, 0.09, 0]}>
-        <sphereGeometry args={[0.08, 24, 24]} />
+      {/* Dome */}
+      <mesh castShadow={high} position={[0, 0.13, 0]}>
+        <sphereGeometry args={[0.055, high ? 20 : 10, high ? 16 : 8, 0, Math.PI * 2, 0, Math.PI / 2]} />
         <meshStandardMaterial
           ref={matRef}
           color={hex}
           emissive={emissive}
           emissiveIntensity={0}
-          roughness={0.15}
+          roughness={0.16}
           transparent
-          opacity={0.92}
+          opacity={0.9}
         />
       </mesh>
-      <mesh position={[-0.03, 0, 0]}>
-        <cylinderGeometry args={[0.008, 0.008, 0.12, 8]} />
-        <meshStandardMaterial color="#9ca3af" metalness={0.8} roughness={0.3} />
+      {/* Body */}
+      <mesh castShadow={high} position={[0, 0.085, 0]}>
+        <cylinderGeometry args={[0.055, 0.055, 0.09, high ? 20 : 10]} />
+        <meshStandardMaterial color={hex} roughness={0.2} transparent opacity={0.9} />
       </mesh>
-      <mesh position={[0.03, 0, 0]}>
-        <cylinderGeometry args={[0.008, 0.008, 0.12, 8]} />
-        <meshStandardMaterial color="#9ca3af" metalness={0.8} roughness={0.3} />
+      {/* Cathode flat + wider base rim: the two physical polarity cues. */}
+      <mesh position={[0.052, 0.06, 0]}>
+        <boxGeometry args={[0.012, 0.05, 0.08]} />
+        <meshStandardMaterial color="#0f172a" roughness={0.5} transparent opacity={0.55} />
       </mesh>
-      <pointLight ref={lightRef} color={hex} intensity={0} distance={1.2} decay={2} position={[0, 0.12, 0]} />
+      <mesh position={[0, 0.042, 0]}>
+        <cylinderGeometry args={[0.066, 0.066, 0.012, high ? 20 : 10]} />
+        <meshStandardMaterial color={hex} roughness={0.3} transparent opacity={0.85} />
+      </mesh>
+      {/* Anode lead (long, -x) and cathode lead (short, +x). */}
+      <mesh position={[-0.03, -0.015, 0]}>
+        <cylinderGeometry args={[0.007, 0.007, 0.15, 6]} />
+        <meshStandardMaterial color="#c9ced6" metalness={0.85} roughness={0.28} />
+      </mesh>
+      <mesh position={[0.03, 0.005, 0]}>
+        <cylinderGeometry args={[0.007, 0.007, 0.11, 6]} />
+        <meshStandardMaterial color="#c9ced6" metalness={0.85} roughness={0.28} />
+      </mesh>
+      <pointLight ref={lightRef} color={hex} intensity={0} distance={1.1} decay={2} position={[0, 0.16, 0]} />
     </group>
   );
 }
 
-function Resistor3D(): JSX.Element {
+/** Axial resistor whose bands are computed from its actual resistance. */
+function Resistor3D({ ohms, high }: { ohms: number; high: boolean }): JSX.Element {
+  const { colors } = useMemo(() => resistorBands(ohms), [ohms]);
+  // Band positions along the body, first digit nearest the left lead.
+  const bandX = [-0.05, -0.025, 0.0, 0.05];
+
   return (
-    <group rotation={[0, 0, Math.PI / 2]}>
-      <mesh castShadow>
-        <cylinderGeometry args={[0.05, 0.05, 0.22, 16]} />
-        <meshStandardMaterial color="#d9b382" roughness={0.6} />
+    <group position={[0, 0.06, 0]} rotation={[0, 0, Math.PI / 2]}>
+      <mesh castShadow={high}>
+        <cylinderGeometry args={[0.04, 0.04, 0.17, high ? 16 : 8]} />
+        <meshStandardMaterial color="#d9c08a" roughness={0.62} />
       </mesh>
-      {[-0.06, -0.02, 0.02].map((y, i) => (
-        <mesh key={i} position={[0, y, 0]}>
-          <cylinderGeometry args={[0.051, 0.051, 0.015, 16]} />
-          <meshStandardMaterial color={['#8a3324', '#111111', '#c62828'][i]} />
+      {colors.map((c, i) => (
+        <mesh key={i} position={[0, bandX[i], 0]}>
+          <cylinderGeometry args={[0.042, 0.042, 0.016, high ? 16 : 8]} />
+          <meshStandardMaterial color={c} roughness={0.5} />
         </mesh>
       ))}
+      {/* Axial leads */}
+      <mesh position={[0, 0.13, 0]}>
+        <cylinderGeometry args={[0.007, 0.007, 0.1, 6]} />
+        <meshStandardMaterial color="#c9ced6" metalness={0.85} roughness={0.28} />
+      </mesh>
+      <mesh position={[0, -0.13, 0]}>
+        <cylinderGeometry args={[0.007, 0.007, 0.1, 6]} />
+        <meshStandardMaterial color="#c9ced6" metalness={0.85} roughness={0.28} />
+      </mesh>
     </group>
   );
 }
 
-function Potentiometer3D({ id }: { id: string }): JSX.Element {
+function Potentiometer3D({ id, high }: { id: string; high: boolean }): JSX.Element {
   const delta = useComponentDelta(id);
   const value = delta?.kind === 'potentiometer' && typeof delta.value === 'number' ? delta.value : 0.5;
   const knob = useRef<THREE.Group>(null);
@@ -251,13 +671,13 @@ function Potentiometer3D({ id }: { id: string }): JSX.Element {
 
   return (
     <group>
-      <mesh castShadow position={[0, 0.05, 0]}>
+      <mesh castShadow={high} position={[0, 0.05, 0]}>
         <boxGeometry args={[0.24, 0.1, 0.24]} />
         <meshStandardMaterial color="#1f2937" roughness={0.7} />
       </mesh>
       <group ref={knob} position={[0, 0.12, 0]}>
-        <mesh castShadow>
-          <cylinderGeometry args={[0.09, 0.09, 0.06, 24]} />
+        <mesh castShadow={high}>
+          <cylinderGeometry args={[0.09, 0.09, 0.06, high ? 24 : 10]} />
           <meshStandardMaterial color="#374151" roughness={0.5} />
         </mesh>
         <mesh position={[0, 0.031, 0.06]}>
@@ -265,30 +685,46 @@ function Potentiometer3D({ id }: { id: string }): JSX.Element {
           <meshStandardMaterial color="#fbbf24" emissive="#fbbf24" emissiveIntensity={0.4} />
         </mesh>
       </group>
+      {/* Three leads: A, wiper, B. */}
+      {[-0.08, 0, 0.08].map((x, i) => (
+        <mesh key={i} position={[x, -0.02, 0.1]}>
+          <cylinderGeometry args={[0.007, 0.007, 0.12, 6]} />
+          <meshStandardMaterial color="#c9ced6" metalness={0.85} roughness={0.28} />
+        </mesh>
+      ))}
     </group>
   );
 }
 
-function Servo3D({ id }: { id: string }): JSX.Element {
+function Servo3D({ id, high }: { id: string; high: boolean }): JSX.Element {
   const delta = useComponentDelta(id);
   const angle = delta?.kind === 'servo' ? delta.angle : 90;
   const horn = useRef<THREE.Group>(null);
 
   useFrame((_, dt) => {
     if (!horn.current) return;
-    const target = THREE.MathUtils.degToRad(angle);
-    horn.current.rotation.y = THREE.MathUtils.damp(horn.current.rotation.y, target, 10, dt);
+    horn.current.rotation.y = THREE.MathUtils.damp(
+      horn.current.rotation.y,
+      THREE.MathUtils.degToRad(angle),
+      10,
+      dt,
+    );
   });
 
   return (
     <group>
-      <mesh castShadow position={[0, 0.1, 0]}>
+      <mesh castShadow={high} position={[0, 0.1, 0]}>
         <boxGeometry args={[0.5, 0.2, 0.24]} />
         <meshStandardMaterial color="#1e3a8a" roughness={0.5} />
       </mesh>
+      {/* Mounting tabs */}
+      <mesh position={[0, 0.16, 0]}>
+        <boxGeometry args={[0.66, 0.03, 0.2]} />
+        <meshStandardMaterial color="#1e3a8a" roughness={0.55} />
+      </mesh>
       <group ref={horn} position={[0.16, 0.22, 0]}>
-        <mesh castShadow>
-          <cylinderGeometry args={[0.05, 0.05, 0.06, 16]} />
+        <mesh castShadow={high}>
+          <cylinderGeometry args={[0.05, 0.05, 0.06, high ? 16 : 8]} />
           <meshStandardMaterial color="#e5e7eb" />
         </mesh>
         <mesh position={[0.12, 0, 0]}>
@@ -296,52 +732,61 @@ function Servo3D({ id }: { id: string }): JSX.Element {
           <meshStandardMaterial color="#f3f4f6" />
         </mesh>
       </group>
+      {/* Three-wire pigtail stub, in the standard brown/red/orange order. */}
+      {['#5b3a1e', '#d1352b', '#e07a1f'].map((c, i) => (
+        <mesh key={c} position={[-0.27, 0.07 + i * 0.028, 0]} rotation={[0, 0, Math.PI / 2]}>
+          <cylinderGeometry args={[0.012, 0.012, 0.08, 6]} />
+          <meshStandardMaterial color={c} roughness={0.85} />
+        </mesh>
+      ))}
     </group>
   );
 }
 
-function Lcd3D({ id }: { id: string }): JSX.Element {
+/**
+ * 16x2 HD44780 character LCD.
+ *
+ * The screen is a canvas texture rather than a drei <Html> overlay: the old Html version
+ * put a DOM node in the scene that could not be occluded by geometry, ignored the camera's
+ * depth buffer, and re-laid-out every frame.
+ */
+function Lcd3D({ id, high }: { id: string; high: boolean }): JSX.Element {
   const delta = useComponentDelta(id);
   const rows = delta?.kind === 'lcd1602' ? delta.rows : (['', ''] as [string, string]);
   const on = delta?.kind === 'lcd1602' ? delta.displayOn : false;
 
+  const screen = useDisposableTexture(
+    () => createLcdScreenTexture([rows[0] ?? '', rows[1] ?? ''], on),
+    [rows[0], rows[1], on],
+  );
+
   return (
     <group>
-      <mesh castShadow position={[0, 0.08, 0]}>
-        <boxGeometry args={[0.9, 0.16, 0.4]} />
-        <meshStandardMaterial color={on ? '#134e2a' : '#0b2415'} roughness={0.6} />
+      {/* PCB */}
+      <mesh castShadow={high} position={[0, 0.04, 0]}>
+        <boxGeometry args={[1.0, 0.05, 0.44]} />
+        <meshStandardMaterial color="#0f5132" roughness={0.6} />
       </mesh>
-      <Html
-        position={[0, 0.17, 0]}
-        rotation={[-Math.PI / 2, 0, 0]}
-        transform
-        occlude
-        distanceFactor={1.2}
-        style={{ pointerEvents: 'none' }}
-      >
-        <div
-          style={{
-            width: 150,
-            padding: '4px 8px',
-            background: on ? '#3fd07f' : '#1f5c38',
-            color: '#06240f',
-            fontFamily: 'monospace',
-            fontSize: 12,
-            lineHeight: '16px',
-            borderRadius: 2,
-            whiteSpace: 'pre',
-          }}
-        >
-          {(rows[0] ?? '').padEnd(16).slice(0, 16)}
-          {'\n'}
-          {(rows[1] ?? '').padEnd(16).slice(0, 16)}
-        </div>
-      </Html>
+      {/* Metal bezel */}
+      <mesh castShadow={high} position={[0, 0.09, -0.02]}>
+        <boxGeometry args={[0.86, 0.06, 0.32]} />
+        <meshStandardMaterial color="#8f959d" metalness={0.7} roughness={0.4} />
+      </mesh>
+      {/* Viewport */}
+      <mesh position={[0, 0.121, -0.02]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[0.74, 0.24]} />
+        <meshBasicMaterial map={screen} toneMapped={false} />
+      </mesh>
+      {/* 16-pin header along the back edge */}
+      <mesh position={[0, 0.08, 0.2]}>
+        <boxGeometry args={[0.84, 0.05, 0.04]} />
+        <meshStandardMaterial color="#15161a" roughness={0.7} />
+      </mesh>
     </group>
   );
 }
 
-function Pushbutton3D({ id }: { id: string }): JSX.Element {
+function Pushbutton3D({ id, high }: { id: string; high: boolean }): JSX.Element {
   const delta = useComponentDelta(id);
   const pressed = delta?.kind === 'pushbutton' && delta.value === true;
   const cap = useRef<THREE.Mesh>(null);
@@ -353,14 +798,26 @@ function Pushbutton3D({ id }: { id: string }): JSX.Element {
 
   return (
     <group>
-      <mesh castShadow position={[0, 0.06, 0]}>
+      <mesh castShadow={high} position={[0, 0.06, 0]}>
         <boxGeometry args={[0.24, 0.12, 0.24]} />
         <meshStandardMaterial color="#cbd5e1" roughness={0.6} />
       </mesh>
-      <mesh ref={cap} castShadow position={[0, 0.15, 0]}>
-        <cylinderGeometry args={[0.06, 0.06, 0.06, 20]} />
+      <mesh ref={cap} castShadow={high} position={[0, 0.15, 0]}>
+        <cylinderGeometry args={[0.06, 0.06, 0.06, high ? 20 : 10]} />
         <meshStandardMaterial color="#e11d48" roughness={0.4} />
       </mesh>
+      {/* Four legs, matching the four registry terminals (a1/a2/b1/b2). */}
+      {[
+        [-0.1, -0.1],
+        [0.1, -0.1],
+        [-0.1, 0.1],
+        [0.1, 0.1],
+      ].map(([x, z], i) => (
+        <mesh key={i} position={[x, -0.01, z]}>
+          <cylinderGeometry args={[0.008, 0.008, 0.13, 6]} />
+          <meshStandardMaterial color="#c9ced6" metalness={0.85} roughness={0.28} />
+        </mesh>
+      ))}
     </group>
   );
 }

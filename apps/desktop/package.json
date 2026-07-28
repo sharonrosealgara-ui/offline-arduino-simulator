@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "productName": "Offline Arduino Simulator",
-  "description": "Photorealistic 3D virtual electronics lab and offline C++ code editor for makers, engineers, and creators.",
+  "description": "Offline Arduino Uno simulator: 3D circuit workspace with a bundled AVR-GCC toolchain and AVR8js simulation.",
   "main": "./dist/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",

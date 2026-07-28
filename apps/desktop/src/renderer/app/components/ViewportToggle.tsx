@@ -1,9 +1,16 @@
 /**
- * Floating viewport mode control for the circuit pane (top-right overlay).
+ * Floating viewport mode control for the circuit pane (top-LEFT overlay).
  *
- * - Segmented control: "2D Schematic" | "3D Studio (4K)"
+ * - Segmented control: "2D Schematic" | "3D Workspace"
  * - "Low-Spec" switch: drives `quality="low"` on <CircuitCanvas3D /> AND the
  *   app-wide low-spec simulation mode so the whole workbench degrades together.
+ *
+ * Two corrections from the previous version:
+ *  - The 3D tab was labelled "3D Studio (4K)". Nothing here renders at 4K — the canvas
+ *    caps device pixel ratio at 1.5 and drops to 1.0 in low-spec — so the label asserted
+ *    a capability the renderer does not have.
+ *  - It sat at top-right, directly underneath the camera-controls overlay. Moved to
+ *    top-left so the two no longer overlap.
  *
  * Fully local styling (inline + design tokens), no external assets.
  */
@@ -24,7 +31,7 @@ export function ViewportToggle({ mode, onModeChange, lowSpec, onLowSpecChange }:
       style={{
         position: 'absolute',
         top: 10,
-        right: 12,
+        left: 12,
         zIndex: 20,
         display: 'flex',
         alignItems: 'center',
@@ -56,7 +63,7 @@ export function ViewportToggle({ mode, onModeChange, lowSpec, onLowSpecChange }:
         <SegmentButton
           active={mode === '3d'}
           onClick={() => onModeChange('3d')}
-          label="3D Studio (4K)"
+          label="3D Workspace"
           icon={<Box size={13} />}
         />
       </div>

@@ -1,6 +1,13 @@
 /**
- * Top-level workbench shell: command bar, three-pane grid (editor | canvas over a
- * full-width bottom pane), and status bar. Source: UI_CANVAS_AND_PACKAGING_SPEC.md §2, §3.
+ * Top-level workbench shell.
+ *
+ * Layout: command bar across the top; a four-track body of
+ *   [component library] [code editor] [3D circuit workspace] [inspector]
+ * over a full-width bottom pane; status bar along the bottom.
+ *
+ * The two side panels collapse (store: `layout.trayVisible` / `layout.inspectorVisible`)
+ * so the workbench still fits a 1366x768 classroom laptop. On narrow viewports the CSS
+ * drops them automatically — see .workbench in global.css.
  */
 import { useRef, useState } from 'react';
 import { Maximize2, Minimize2 } from 'lucide-react';
@@ -14,8 +21,11 @@ import { PaneSplitter } from '../components/PaneSplitter';
 import { ExamplesModal } from './dialogs/ExamplesModal';
 import { HelpDrawer } from './dialogs/HelpDrawer';
 import { LogicAnalyzerCanvas } from './logic/LogicAnalyzerCanvas';
+import { ComponentLibrary } from './panels/ComponentLibrary';
+import { Inspector } from './panels/Inspector';
+import { StatusBar } from './StatusBar';
 import { useAppShortcuts } from './hooks/useAppShortcuts';
-import { useLayout, useSimulation, useCompiler, useActions } from '../state/store';
+import { useLayout, useCompiler, useSimulation, useActions } from '../state/store';
 
 export function AppShell(): JSX.Element {
   const layout = useLayout();
@@ -25,7 +35,6 @@ export function AppShell(): JSX.Element {
   const [viewportMaximized, setViewportMaximized] = useState(false);
   const workbenchRef = useRef<HTMLDivElement | null>(null);
 
-  // Ctrl/Cmd+S → Save, Ctrl/Cmd+Enter → Verify & Run.
   useAppShortcuts();
 
   const setEditorWidth = (percent: number): void => {
@@ -37,6 +46,10 @@ export function AppShell(): JSX.Element {
     if (workbenchRef.current) workbenchRef.current.style.setProperty('--bottom-height', `${px}px`);
   };
 
+  // Maximizing the viewport hides the editor, both side panels, and the splitter.
+  const showLibrary = layout.trayVisible && !viewportMaximized;
+  const showInspector = layout.inspectorVisible && !viewportMaximized;
+
   return (
     <div className="appShell">
       <CommandBar onOpenExamples={() => setExamplesOpen(true)} onOpenDocumentation={() => setHelpOpen(true)} />
@@ -44,10 +57,16 @@ export function AppShell(): JSX.Element {
       <div
         className="workbench"
         ref={workbenchRef}
-        // Maximize collapses the editor + vertical splitter tracks to 0 (keeping all 3
-        // grid tracks so no grid-column placements break), giving the circuit full width.
-        style={viewportMaximized ? { gridTemplateColumns: '0px 0px minmax(0, 1fr)' } : undefined}
+        data-library={showLibrary ? 'on' : 'off'}
+        data-inspector={showInspector ? 'on' : 'off'}
+        style={viewportMaximized ? { gridTemplateColumns: '0 0 0 minmax(0, 1fr) 0' } : undefined}
       >
+        {showLibrary && (
+          <aside className="libraryPane" aria-label="Project explorer and component library">
+            <ComponentLibrary />
+          </aside>
+        )}
+
         <section
           className="editorPane"
           aria-label="Code editor"
@@ -61,29 +80,28 @@ export function AppShell(): JSX.Element {
 
         <PaneSplitter
           orientation="vertical"
-          ariaLabel="Resize code editor and circuit canvas"
-          min={30}
+          ariaLabel="Resize code editor and circuit workspace"
+          min={25}
           max={70}
           value={layout.editorWidthPercent}
           onDragValue={setEditorWidth}
           onCommit={setEditorWidth}
-          onRestoreDefault={() => setEditorWidth(46)}
+          onRestoreDefault={() => setEditorWidth(42)}
           pxToValue={(px) => (px / (workbenchRef.current?.clientWidth ?? 1440)) * 100}
           style={viewportMaximized ? { visibility: 'hidden', pointerEvents: 'none' } : undefined}
         />
 
-        <section className="canvasPane" aria-label="Circuit canvas">
-          <div className="paneHeader" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span>Circuit</span>
+        <section className="canvasPane" aria-label="3D circuit workspace">
+          <div className="paneHeader paneHeader--row">
+            <span>Circuit Workspace</span>
             <button
               type="button"
-              className="btn"
-              style={{ marginLeft: 'auto', minHeight: 0, minWidth: 0, padding: '2px 8px', fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+              className="btn btn--compact"
               onClick={() => setViewportMaximized((v) => !v)}
               aria-pressed={viewportMaximized}
-              title={viewportMaximized ? 'Restore layout' : 'Maximize viewport'}
+              title={viewportMaximized ? 'Restore layout' : 'Maximize workspace'}
             >
-              {viewportMaximized ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+              {viewportMaximized ? <Minimize2 size={14} aria-hidden /> : <Maximize2 size={14} aria-hidden />}
               {viewportMaximized ? 'Restore' : 'Maximize'}
             </button>
           </div>
@@ -91,6 +109,12 @@ export function AppShell(): JSX.Element {
             <CircuitPane />
           </div>
         </section>
+
+        {showInspector && (
+          <aside className="inspectorPane" aria-label="Properties and component inspector">
+            <Inspector />
+          </aside>
+        )}
 
         <PaneSplitter
           orientation="horizontal"
@@ -126,8 +150,8 @@ function BottomTabs(): JSX.Element {
   const problemCount = compiler.diagnostics.length + simulation.circuitDiagnostics.length;
 
   const tabs: Array<{ id: typeof layout.selectedBottomTab; label: string }> = [
-    { id: 'serial', label: 'Serial Monitor' },
     { id: 'problems', label: `Problems${problemCount ? ` (${problemCount})` : ''}` },
+    { id: 'serial', label: 'Serial Monitor' },
     { id: 'runtime', label: 'Circuit & Runtime' },
     { id: 'logic', label: 'Logic Analyzer' },
   ];
@@ -154,16 +178,5 @@ function BottomTabs(): JSX.Element {
         {layout.selectedBottomTab === 'logic' && <LogicAnalyzerCanvas />}
       </div>
     </>
-  );
-}
-
-function StatusBar(): JSX.Element {
-  const simulation = useSimulation();
-  return (
-    <div className="statusBar">
-      <span className="statusBar__offlineReady">● OFFLINE READY</span>
-      <span>Arduino Uno · ATmega328P · 16 MHz</span>
-      <span style={{ marginLeft: 'auto' }}>Simulation: {simulation.phase}</span>
-    </div>
   );
 }

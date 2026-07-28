@@ -5,6 +5,7 @@
 // mandatory step run before packaging and at first compiler use.
 const fs = require('node:fs');
 const path = require('node:path');
+const { checkLicenses } = require('./check-licenses.cjs');
 
 /** @param {import('electron-builder').AfterPackContext} context */
 module.exports = async function verifyPackagedResources(context) {
@@ -52,10 +53,39 @@ module.exports = async function verifyPackagedResources(context) {
         fs.chmodSync(exe, 0o755);
       }
     }
-    if (!fs.existsSync(path.join(runtime, 'toolchains', id, 'manifest.json'))) {
+    const manifestPath = path.join(runtime, 'toolchains', id, 'manifest.json');
+    if (!fs.existsSync(manifestPath)) {
       throw new Error(`[afterPack] Missing toolchain manifest for ${id}`);
     }
+
+    // The app hashes EVERY manifest entry at first compiler use and throws
+    // TOOLCHAIN_MISSING on the first absent file. Pruning the toolchain without
+    // regenerating the manifest therefore produces an installer that packages
+    // cleanly but cannot compile a single sketch. Presence-check the whole manifest
+    // here so that failure is caught at build time, not by the client.
+    const toolchainRoot = path.join(runtime, 'toolchains', id);
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    const entries = Array.isArray(manifest.files) ? manifest.files : [];
+    if (entries.length === 0) {
+      throw new Error(`[afterPack] Toolchain manifest for ${id} has no file entries.`);
+    }
+    const absent = [];
+    for (const entry of entries) {
+      if (!entry || !entry.sha256) continue;
+      if (!fs.existsSync(path.join(toolchainRoot, entry.path))) absent.push(entry.path);
+    }
+    if (absent.length > 0) {
+      throw new Error(
+        `[afterPack] Toolchain manifest for ${id} lists ${absent.length} file(s) that are not packaged, ` +
+          `so the installed app would fail its first compile with TOOLCHAIN_MISSING. ` +
+          `Regenerate it after pruning: npm run manifest:win. First missing: ${absent.slice(0, 3).join(', ')}`,
+      );
+    }
+    console.log(`[afterPack] ${id}: manifest lists ${entries.length} files, all present.`);
   }
+
+  // Redistribution licenses must travel with the binaries they cover.
+  checkLicenses(path.join(runtime, 'licenses'));
 
   console.log(
     `[afterPack] Packaged-resource verification OK (${platform}/${arch}); runtime tree complete.`,

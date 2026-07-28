@@ -1,40 +1,186 @@
-// Regenerates THIRD_PARTY_NOTICES.md from vendor/licenses + the npm dependency tree.
-// This is a light scaffold: it enumerates license folders and the root dependencies so
-// the release notice stays in sync. Extend with a full SPDX crawl before shipping.
-import { readdir, readFile, writeFile } from 'node:fs/promises';
+// Regenerates THIRD_PARTY_NOTICES.md from vendor/licenses + the real npm dependency tree.
+//
+// Earlier this was a scaffold that read only the ROOT package.json and wrote to a side file
+// nobody consumed, so the whole 3D stack (three, @react-three/*) — which lives in the
+// apps/desktop workspace — was silently absent from the notices. It now:
+//   - walks every workspace package.json (root, apps/*, packages/*)
+//   - resolves each dependency's ACTUAL license field from its installed package.json,
+//     checking nested node_modules before the hoisted root
+//   - writes THIRD_PARTY_NOTICES.md directly, and fails loudly on unresolved licenses
+//
+//   node scripts/generate-third-party-notices.mjs
+import { readdir, readFile, writeFile, access } from 'node:fs/promises';
+import { constants } from 'node:fs';
 import path from 'node:path';
 
 const root = process.cwd();
-const pkg = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
 
+async function readJson(file) {
+  return JSON.parse(await readFile(file, 'utf8'));
+}
+async function exists(file) {
+  try {
+    await access(file, constants.F_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// ---------------------------------------------------------------------------------------
+// 1. Collect every workspace manifest.
+// ---------------------------------------------------------------------------------------
+const workspaceDirs = [root];
+for (const group of ['apps', 'packages']) {
+  const groupDir = path.join(root, group);
+  if (!(await exists(groupDir))) continue;
+  for (const entry of await readdir(groupDir, { withFileTypes: true })) {
+    if (entry.isDirectory()) workspaceDirs.push(path.join(groupDir, entry.name));
+  }
+}
+
+/** name -> { declared: Set<range>, workspaces: Set<string> } */
+const wanted = new Map();
+const localPackageNames = new Set();
+
+for (const dir of workspaceDirs) {
+  const manifestPath = path.join(dir, 'package.json');
+  if (!(await exists(manifestPath))) continue;
+  const manifest = await readJson(manifestPath);
+  if (manifest.name) localPackageNames.add(manifest.name);
+  const label = path.relative(root, dir) || '.';
+  for (const [name, range] of Object.entries(manifest.dependencies ?? {})) {
+    if (!wanted.has(name)) wanted.set(name, { declared: new Set(), workspaces: new Set() });
+    wanted.get(name).declared.add(range);
+    wanted.get(name).workspaces.add(label);
+  }
+}
+
+// ---------------------------------------------------------------------------------------
+// 2. Resolve each dependency's installed version + license.
+// ---------------------------------------------------------------------------------------
+async function resolveInstalled(name, workspaces) {
+  const candidates = [];
+  for (const ws of workspaces) {
+    if (ws !== '.') candidates.push(path.join(root, ws, 'node_modules', name, 'package.json'));
+  }
+  candidates.push(path.join(root, 'node_modules', name, 'package.json'));
+
+  for (const candidate of candidates) {
+    if (await exists(candidate)) {
+      const pkg = await readJson(candidate);
+      let license = pkg.license ?? null;
+      if (!license && Array.isArray(pkg.licenses)) {
+        license = pkg.licenses.map((l) => l.type ?? l).join(' OR ');
+      }
+      if (license && typeof license === 'object') license = license.type ?? null;
+      return { version: pkg.version ?? 'unknown', license: license ?? null };
+    }
+  }
+  return null;
+}
+
+const resolved = [];
+const unresolved = [];
+
+for (const [name, info] of [...wanted.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
+  if (localPackageNames.has(name)) continue; // first-party workspace package
+  const installed = await resolveInstalled(name, info.workspaces);
+  if (!installed || !installed.license) {
+    unresolved.push({ name, reason: installed ? 'no license field' : 'not installed' });
+    resolved.push({
+      name,
+      version: installed?.version ?? [...info.declared][0],
+      license: 'UNRESOLVED — verify manually',
+      workspaces: [...info.workspaces].join(', '),
+    });
+    continue;
+  }
+  resolved.push({
+    name,
+    version: installed.version,
+    license: installed.license,
+    workspaces: [...info.workspaces].join(', '),
+  });
+}
+
+// ---------------------------------------------------------------------------------------
+// 3. Enumerate the redistributed native components.
+// ---------------------------------------------------------------------------------------
 let licenseDirs = [];
 try {
   licenseDirs = (await readdir(path.join(root, 'vendor', 'licenses'), { withFileTypes: true }))
     .filter((d) => d.isDirectory())
-    .map((d) => d.name);
+    .map((d) => d.name)
+    .sort();
 } catch {
   /* licenses not populated */
 }
 
+// ---------------------------------------------------------------------------------------
+// 4. Emit.
+// ---------------------------------------------------------------------------------------
 const lines = [];
 lines.push('# Third-Party Notices');
 lines.push('');
-lines.push('_Generated by scripts/generate-third-party-notices.mjs._');
+lines.push('_Generated by `npm run notices`. Do not edit by hand._');
 lines.push('');
-lines.push('## Redistributed native components (vendor/licenses)');
+lines.push('Components redistributed inside the packaged application.');
+lines.push('');
+
+lines.push('## Bundled native toolchain and Arduino core');
+lines.push('');
+lines.push('Redistributed as `extraResources` outside `app.asar`, under `runtime/`.');
+lines.push('');
+lines.push('| Component | License | Obligation |');
+lines.push('| --- | --- | --- |');
+lines.push('| avr-gcc (GCC for AVR) | GPL-3.0-or-later, with GCC Runtime Library Exception | Ship license text + provide corresponding source |');
+lines.push('| binutils (`avr-ar`, `avr-gcc-ar`, `avr-objcopy`, `avr-size`, `avr-as`, `avr-ld`) | GPL-3.0-or-later | Ship license text + provide corresponding source |');
+lines.push('| avr-libc | Modified BSD | Reproduce copyright notice and disclaimer |');
+lines.push('| ArduinoCore-avr (core, variants, libraries) | LGPL-2.1-or-later, per-library variations | Ship license text; core is unmodified |');
+lines.push('');
+lines.push('Pinned versions and per-archive SHA-256 values live in `toolchain-lock.json`;');
+lines.push('per-file hashes live in each `vendor/toolchains/<target>/manifest.json`.');
+lines.push('');
+
+lines.push('### Attribution records (`vendor/licenses/` → `runtime/licenses/`)');
 lines.push('');
 if (licenseDirs.length === 0) {
-  lines.push('_No license folders populated yet._');
+  lines.push('_No attribution records present — this is a release blocker._');
 } else {
-  for (const dir of licenseDirs) lines.push(`- ${dir}`);
+  for (const dir of licenseDirs) lines.push(`- \`${dir}/NOTICE.md\``);
 }
 lines.push('');
+lines.push('Run `node scripts/check-licenses.cjs` to confirm both the attribution records and');
+lines.push('the verbatim license texts are present. Packaging runs this automatically.');
+lines.push('');
+
+lines.push('## 3D and UI assets');
+lines.push('');
+lines.push('All hardware representations rendered in the circuit workspace are original');
+lines.push('procedural three.js geometry authored for this project and licensed MIT with the');
+lines.push('rest of the repository. No third-party models, textures, HDRIs, photography, or');
+lines.push('CDN-hosted fonts are used — there are no binary asset files to attribute.');
+lines.push('See `vendor/licenses/app-3d-assets/NOTICE.md`, which also records the trademark');
+lines.push('position on the "Arduino" name.');
+lines.push('');
+
 lines.push('## npm runtime dependencies');
 lines.push('');
-for (const [name, version] of Object.entries(pkg.dependencies ?? {})) {
-  lines.push(`- ${name}@${version}`);
+lines.push(`Resolved from installed packages across ${workspaceDirs.length} workspace manifests.`);
+lines.push('');
+lines.push('| Package | Version | License | Declared in |');
+lines.push('| --- | --- | --- | --- |');
+for (const dep of resolved) {
+  lines.push(`| \`${dep.name}\` | ${dep.version} | ${dep.license} | ${dep.workspaces} |`);
 }
 lines.push('');
 
-await writeFile(path.join(root, 'THIRD_PARTY_NOTICES.generated.md'), lines.join('\n'), 'utf8');
-console.log('[notices] Wrote THIRD_PARTY_NOTICES.generated.md');
+await writeFile(path.join(root, 'THIRD_PARTY_NOTICES.md'), `${lines.join('\n')}\n`, 'utf8');
+
+console.log(`[notices] THIRD_PARTY_NOTICES.md: ${resolved.length} npm packages, ${licenseDirs.length} native attribution records.`);
+if (unresolved.length > 0) {
+  console.error(`[notices] ${unresolved.length} unresolved license(s):`);
+  for (const u of unresolved) console.error(`  - ${u.name}: ${u.reason}`);
+  process.exit(1);
+}

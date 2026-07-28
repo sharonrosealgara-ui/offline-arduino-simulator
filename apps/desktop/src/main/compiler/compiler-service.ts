@@ -13,7 +13,7 @@ import { performance } from 'node:perf_hooks';
 import type { CompileErrorCode, CompileRequest, CompileResult, CompilerDiagnostic } from '@offline-arduino/contracts/compiler';
 import { BOARD_PROFILES, type BoardProfile } from '@offline-arduino/contracts/board-profiles';
 import { resolveToolchain, type ToolchainLayout } from './toolchain-paths';
-import { loadToolchainManifest, verifyToolchainIntegrity, ToolchainIntegrityError } from '../security/resource-integrity';
+import { loadToolchainManifest, ensureToolchainIntegrity, ToolchainIntegrityError } from '../security/resource-integrity';
 import { runProcess, createCompilerEnv, ProcessRunError } from './process-runner';
 import { preprocessIno } from './ino-preprocessor';
 import {
@@ -107,7 +107,8 @@ export class CompilerService {
         throw Object.assign(new Error(error instanceof Error ? error.message : String(error)), { code: 'TOOLCHAIN_MISSING' });
       });
       const manifest = await loadToolchainManifest(layout.root);
-      await verifyToolchainIntegrity(layout.root, manifest, process.platform === 'win32' ? '.exe' : '');
+      // Session-memoized: full-manifest hashing runs at first compiler use, not per compile.
+      await ensureToolchainIntegrity(layout.root, manifest, process.platform === 'win32' ? '.exe' : '');
 
       const { cpp: generatedCpp, lineOffset } = preprocessIno(request.source, request.sketchName ?? 'Sketch.ino');
 
