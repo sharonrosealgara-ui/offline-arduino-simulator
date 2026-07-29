@@ -45,7 +45,18 @@ const stage = path.join(tmpdir(), 'oas-arduino-core-stage');
 await rm(stage, { recursive: true, force: true });
 await mkdir(stage, { recursive: true });
 console.log('[fetch-arduino-core] Extracting…');
-const res = spawnSync('tar', ['-xf', archivePath, '-C', stage, '--strip-components=1'], { stdio: 'inherit' });
+// Pass the archive as a bare basename with `cwd` set to its directory.
+//
+// GNU tar treats an `-f` operand containing a colon as a REMOTE `host:path` spec, so a
+// Windows path like `C:\Users\...\oas-core.tar.bz2` fails with
+// "tar: Cannot connect to C: resolve failed". `--force-local` fixes GNU tar but is rejected
+// by the bsdtar shipped in Windows System32, so it would only move the breakage. Removing
+// the colon from the archive operand works with both. `-C <dir>` is unaffected — only the
+// archive operand gets host:path treatment.
+const res = spawnSync('tar', ['-xf', path.basename(archivePath), '-C', stage, '--strip-components=1'], {
+  cwd: path.dirname(archivePath),
+  stdio: 'inherit',
+});
 if (res.status !== 0) throw new Error('Extraction via system `tar` failed.');
 
 // Copy allowlisted subtrees only (spec: cores/arduino, variants/standard, allowlisted libraries).

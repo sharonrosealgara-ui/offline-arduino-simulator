@@ -6,12 +6,30 @@
 //
 //   node scripts/fetch-arduino-libraries.mjs
 import { createHash } from 'node:crypto';
-import { createWriteStream } from 'node:fs';
+import { createWriteStream, existsSync } from 'node:fs';
 import { mkdir, readFile, writeFile, rm, readdir, cp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import { spawnSync } from 'node:child_process';
+
+/**
+ * These libraries ship as ZIP archives, which requires a libarchive-backed tar (bsdtar).
+ *
+ * Windows has shipped bsdtar at System32\tar.exe since Windows 10 1803, and macOS tar is
+ * also bsdtar — but a Git Bash / MSYS environment puts GNU tar earlier on PATH, and GNU tar
+ * cannot read ZIP at all ("Skipping to next header … Exiting with failure status"). Resolve
+ * the system bsdtar explicitly on Windows rather than trusting PATH order.
+ */
+function resolveZipCapableTar() {
+  if (process.platform === 'win32') {
+    const systemTar = path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe');
+    if (existsSync(systemTar)) return systemTar;
+  }
+  return 'tar';
+}
+
+const TAR = resolveZipCapableTar();
 
 // Pinned from Arduino's official library_index.json (downloads.arduino.cc mirror).
 const LIBRARIES = [
@@ -50,7 +68,13 @@ for (const lib of LIBRARIES) {
   const stage = path.join(tmpdir(), `oas-lib-stage-${lib.name}`);
   await rm(stage, { recursive: true, force: true });
   await mkdir(stage, { recursive: true });
-  const res = spawnSync('tar', ['-xf', archivePath, '-C', stage], { stdio: 'inherit' });
+  // Bare basename + `cwd`: GNU tar reads an `-f` operand containing a colon as a remote
+  // `host:path`, so a Windows archive path fails with "Cannot connect to C:". See the same
+  // fix and rationale in fetch-arduino-core.mjs.
+  const res = spawnSync(TAR, ['-xf', path.basename(archivePath), '-C', stage], {
+    cwd: path.dirname(archivePath),
+    stdio: 'inherit',
+  });
   if (res.status !== 0) throw new Error(`Extraction failed for ${lib.name}.`);
 
   // Archive root folder is e.g. LiquidCrystal-1.0.7/ — locate it.
