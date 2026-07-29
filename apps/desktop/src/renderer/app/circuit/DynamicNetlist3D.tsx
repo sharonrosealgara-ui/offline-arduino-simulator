@@ -17,7 +17,8 @@
  *  `controls.enabled` for the duration and restores it on pointerup (including when the
  *  pointer is released outside the canvas), so the two never fight.
  */
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState, useEffect } from 'react';
+import { simulationClient } from '../../simulation/simulation-client';
 import * as THREE from 'three';
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import {
@@ -790,11 +791,81 @@ function Pushbutton3D({ id, high }: { id: string; high: boolean }): JSX.Element 
   const delta = useComponentDelta(id);
   const pressed = delta?.kind === 'pushbutton' && delta.value === true;
   const cap = useRef<THREE.Mesh>(null);
+  const pointerIdRef = useRef<number | null>(null);
 
   useFrame((_, dt) => {
     if (!cap.current) return;
     cap.current.position.y = THREE.MathUtils.damp(cap.current.position.y, pressed ? 0.11 : 0.15, 20, dt);
   });
+
+  // Pointer/keyboard handlers update the real simulation control through the SimulationClient.
+  const onPointerDown = useCallback((event: ThreeEvent<PointerEvent>) => {
+    event.stopPropagation();
+    try {
+      // Capture pointer so we reliably get the up/cancel even if it leaves the canvas.
+      (event.target as Element | null)?.setPointerCapture?.(event.pointerId);
+    } catch {
+      // ignore environments without pointer capture
+    }
+    pointerIdRef.current = event.pointerId;
+    simulationClient.setControl(id, true);
+  }, [id]);
+
+  const release = useCallback((event?: ThreeEvent<PointerEvent>) => {
+    try {
+      if (event && typeof (event as any).pointerId === 'number') {
+        (event.target as Element | null)?.releasePointerCapture?.((event as any).pointerId);
+      } else if (pointerIdRef.current !== null) {
+        // Best-effort release with stored id if available
+        (event?.target as Element | null)?.releasePointerCapture?.(pointerIdRef.current);
+      }
+    } catch {}
+    pointerIdRef.current = null;
+    simulationClient.setControl(id, false);
+  }, [id]);
+
+  const onPointerUp = useCallback((event: ThreeEvent<PointerEvent>) => {
+    event.stopPropagation();
+    release(event);
+  }, [release]);
+
+  const onPointerCancel = useCallback((event: ThreeEvent<PointerEvent>) => {
+    event.stopPropagation();
+    release(event);
+  }, [release]);
+
+  const onPointerOut = useCallback((event: ThreeEvent<PointerEvent>) => {
+    // If the pointer leaves while pressed, release so the button cannot stick down.
+    if (pointerIdRef.current !== null) release(event);
+  }, [release]);
+
+  // Keyboard support: when the component is selected, allow Space/Enter to press it.
+  // This attaches window-level handlers when selected to avoid requiring DOM focus on
+  // the three-canvas mesh element, and keeps the three-fiber mesh typings clean.
+  const selected = useCircuit().selectedIds.includes(id);
+  useEffect(() => {
+    if (!selected) return;
+    const kd = (ev: KeyboardEvent) => {
+      if (ev.key === ' ' || ev.key === 'Enter') {
+        ev.preventDefault();
+        simulationClient.setControl(id, true);
+      }
+    };
+    const ku = (ev: KeyboardEvent) => {
+      if (ev.key === ' ' || ev.key === 'Enter') {
+        ev.preventDefault();
+        simulationClient.setControl(id, false);
+      }
+    };
+    window.addEventListener('keydown', kd);
+    window.addEventListener('keyup', ku);
+    return () => {
+      window.removeEventListener('keydown', kd);
+      window.removeEventListener('keyup', ku);
+      // Ensure release if selection is lost while pressed
+      simulationClient.setControl(id, false);
+    };
+  }, [id, selected]);
 
   return (
     <group>
@@ -802,7 +873,15 @@ function Pushbutton3D({ id, high }: { id: string; high: boolean }): JSX.Element 
         <boxGeometry args={[0.24, 0.12, 0.24]} />
         <meshStandardMaterial color="#cbd5e1" roughness={0.6} />
       </mesh>
-      <mesh ref={cap} castShadow={high} position={[0, 0.15, 0]}>
+      <mesh
+        ref={cap}
+        castShadow={high}
+        position={[0, 0.15, 0]}
+        onPointerDown={(e) => onPointerDown(e)}
+        onPointerUp={(e) => onPointerUp(e)}
+        onPointerCancel={(e) => onPointerCancel(e)}
+        onPointerOut={(e) => onPointerOut(e)}
+>
         <cylinderGeometry args={[0.06, 0.06, 0.06, high ? 20 : 10]} />
         <meshStandardMaterial color="#e11d48" roughness={0.4} />
       </mesh>

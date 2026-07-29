@@ -267,6 +267,31 @@ export class CircuitRuntime {
       if (led) led.runtime.setCurrentAmps(current, cycle);
     }
 
+    // --- LED reverse-polarity diagnostic (only when voltages are known) -------------
+    for (const { element } of this.leds.values()) {
+      const anodeV = result.voltages.get(element.anode);
+      const cathodeV = result.voltages.get(element.cathode);
+      const id = `LED_REVERSED:${element.id}`;
+      // Only warn when both node voltages are known and the anode is substantially
+      // lower than the cathode (reliably reversed). Use a margin to avoid noise.
+      if (typeof anodeV === 'number' && typeof cathodeV === 'number') {
+        if (anodeV + 0.5 < cathodeV) {
+          this.upsertDiagnostic({
+            id,
+            severity: 'warning',
+            code: 'LED_REVERSED',
+            message: 'LED appears reversed: swap the anode/cathode leads so the anode is at the higher potential.',
+            componentIds: [element.id],
+          });
+        } else {
+          this.clearDiagnostic(id);
+        }
+      } else {
+        // Unknown voltages → cannot determine polarity reliably; don't warn.
+        this.clearDiagnostic(id);
+      }
+    }
+
     // --- Net logic + AVR input feedback ------------------------------------------------
     for (const net of this.netlist.nets) {
       const volts = result.voltages.get(net.id) ?? null;

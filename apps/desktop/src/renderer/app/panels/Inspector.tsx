@@ -6,10 +6,13 @@
  * store, so an edit here is immediately what the netlist compiler will see.
  */
 import { Info, Link2, Trash2, RotateCw, Unlink } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import type { CircuitComponent } from '@offline-arduino/contracts/circuit';
 import { catalogEntry, type CatalogProperty } from '../circuit/component-catalog';
 import { formatOhms } from '../circuit/hardware/resistor-bands';
 import { useCircuit, useActions, useSimulation } from '../../state/store';
+
+import { simulationClient } from '../../simulation/simulation-client';
 
 export function Inspector(): JSX.Element {
   const circuit = useCircuit();
@@ -102,6 +105,38 @@ function ComponentInspector({ component }: { component: CircuitComponent }): JSX
     ]).filter((t): t is string => t !== null),
   );
 
+  // For interactive controls (potentiometer) show a live slider bound to the running
+  // simulation. Do not update React state every simulation tick; the slider keeps local
+  // state while the user is interacting and syncs from the simulation only when idle.
+  const simulation = useSimulation();
+
+  const simDelta = simulation.components[component.id];
+  const potValueFromSim = simDelta?.kind === 'potentiometer' && typeof simDelta.value === 'number' ? simDelta.value : undefined;
+
+  // Local slider state in percent (0..100) to avoid re-rendering every FRAME when the
+  // worker publishes component deltas. Sync only when not actively dragging.
+  const [sliderPercent, setSliderPercent] = useState<number>(() =>
+    typeof potValueFromSim === 'number' ? Math.round(potValueFromSim * 100) : Math.round(Number(component.properties.initialPosition ?? 0.5) * 100),
+  );
+  const draggingRef = useRef(false);
+
+  // When the simulation drives a new value and the user is not dragging, sync the slider.
+  if (!draggingRef.current && typeof potValueFromSim === 'number') {
+    const next = Math.round(potValueFromSim * 100);
+    if (next !== sliderPercent) setSliderPercent(next);
+  }
+
+  const onSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const pct = Number(e.target.value);
+    setSliderPercent(pct);
+    const pos = pct / 100;
+    // Send the numeric 0..1 directly to the worker via the SimulationClient.
+    simulationClient.setControl(component.id, pos);
+  };
+
+  const onSliderPointerDown = () => (draggingRef.current = true);
+  const onSliderPointerUp = () => (draggingRef.current = false);
+
   if (component.kind === 'uno-r3') {
     return (
       <div className="inspectorBlock">
@@ -164,6 +199,36 @@ function ComponentInspector({ component }: { component: CircuitComponent }): JSX
           {entry.properties.map((property) => (
             <PropertyField key={property.key} component={component} property={property} />
           ))}
+        </>
+      )}
+
+      {/* Potentiometer live control: accessible slider + readout */}
+      {component.kind === 'potentiometer' && (
+        <>
+          <h4 className="inspectorBlock__subtitle">Potentiometer</h4>
+          <div className="field">
+            <label className="fieldLabel" htmlFor={`pot-${component.id}`}>Position</label>
+            <div className="field__row">
+              <input
+                id={`pot-${component.id}`}
+                className="rangeInput"
+                type="range"
+                min={0}
+                max={100}
+                step={1}
+                value={sliderPercent}
+                onChange={onSliderChange}
+                onPointerDown={onSliderPointerDown}
+                onPointerUp={onSliderPointerUp}
+              />
+              <span className="field__suffix">{sliderPercent}%</span>
+            </div>
+            <div style={{ marginTop: 8 }}>
+              <small>
+                ADC: {Math.round((sliderPercent / 100) * 1023)} &nbsp;•&nbsp; Voltage: {(sliderPercent / 100 * 5).toFixed(2)} V
+              </small>
+            </div>
+          </div>
         </>
       )}
 
