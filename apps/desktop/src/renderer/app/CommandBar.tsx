@@ -49,6 +49,7 @@ export function CommandBar({ onOpenExamples, onOpenDocumentation }: Props): JSX.
   const verifyStatus = useCompilerStore((s) => s.status);
   const verifyOutput = useCompilerStore((s) => s.output);
   const verifyErrorCount = useCompilerStore((s) => s.errorCount);
+  const busyNotice = useCompilerStore((s) => s.busyNotice);
   const verifying = verifyStatus === 'compiling';
 
   const running = simulation.phase === 'running';
@@ -83,7 +84,17 @@ export function CommandBar({ onOpenExamples, onOpenDocumentation }: Props): JSX.
           <CheckCircle2 size={16} /> {verifying ? 'Verifying…' : 'Verify'}
         </button>
         {!running ? (
-          <button className="btn btn--primary" onClick={() => void controller.run()}>
+          // Disabled while a compile is in flight for the same reason Verify is: Run also
+          // compiles, and letting it fire mid-build produces a request the compiler must
+          // refuse. The refusal is harmless now, but blocking the click is clearer than
+          // showing the student a "please wait" they could have avoided.
+          <button
+            className="btn btn--primary"
+            onClick={() => void controller.run()}
+            disabled={verifying}
+            aria-busy={verifying}
+            title={verifying ? 'Waiting for the current build to finish' : 'Compile and run'}
+          >
             <Play size={16} /> Run
           </button>
         ) : (
@@ -119,10 +130,13 @@ export function CommandBar({ onOpenExamples, onOpenDocumentation }: Props): JSX.
                   ? 'var(--success, #34d399)'
                   : 'var(--text-secondary)',
           }}
-          title={verifyOutput}
+          title={busyNotice ?? verifyOutput}
         >
-          {verifyOutput}
-          {verifyStatus === 'error' && verifyErrorCount > 0
+          {/* A busy refusal is shown INSTEAD of the running build's line, never written into
+              it — the in-flight compile still owns `status`/`output` and its real result
+              must survive. */}
+          {busyNotice ?? verifyOutput}
+          {!busyNotice && verifyStatus === 'error' && verifyErrorCount > 0
             ? ` (${verifyErrorCount} error${verifyErrorCount === 1 ? '' : 's'})`
             : ''}
         </span>

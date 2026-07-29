@@ -37,6 +37,9 @@ export interface VerifyOptions {
   compile?: CompileFn;
 }
 
+/** Shown when a compile is requested while one is already running. */
+export const COMPILER_BUSY_NOTICE = 'Already compiling — please wait for this build to finish.';
+
 interface CompilerStoreState {
   status: CompileStatus;
   diagnostics: CompilerDiagnostic[];
@@ -45,10 +48,19 @@ interface CompilerStoreState {
   activeRequestId: string | null;
   errorCount: number;
   warningCount: number;
+  /**
+   * Transient message for a request that was refused because a compile is already running.
+   *
+   * Deliberately separate from `status`/`output`: those describe the *in-flight* compile and
+   * must not be repurposed to report a rejection, or the running build's real outcome would
+   * be overwritten by a request that never ran.
+   */
+  busyNotice: string | null;
 
   verify: (source: string, options?: VerifyOptions) => Promise<boolean>;
   cancel: () => void;
   reset: () => void;
+  dismissBusyNotice: () => void;
 }
 
 let counter = 0;
@@ -65,8 +77,27 @@ export const useCompilerStore = create<CompilerStoreState>((set, get) => ({
   activeRequestId: null,
   errorCount: 0,
   warningCount: 0,
+  busyNotice: null,
 
   verify: async (source, options = {}) => {
+    // ---- Single-flight gate -----------------------------------------------------------
+    // A compile requested while one is already running is refused HERE, before a request id
+    // is allocated and before any process is spawned.
+    //
+    // Previously the second request ran the full path: it minted a new id, overwrote
+    // `activeRequestId` (and, via the compile callback, the app store's
+    // `compiler.requestId`), and only then discovered the main process was busy. The
+    // rejection was attributed to the new id, so when the ORIGINAL compile finished
+    // successfully its result no longer matched the recorded id and was dropped as stale —
+    // leaving "last compile failed" on screen after a build that actually succeeded.
+    //
+    // Refusing early keeps the running request's identity intact, so its result stays
+    // authoritative. Stale-result protection is untouched: ids still have to match.
+    if (get().status === 'compiling') {
+      set({ busyNotice: COMPILER_BUSY_NOTICE });
+      return false;
+    }
+
     const { boardId = 'uno', sourceRevision = 0, compile = defaultCompile } = options;
     const requestId = nextRequestId();
 
@@ -77,6 +108,7 @@ export const useCompilerStore = create<CompilerStoreState>((set, get) => ({
       diagnostics: [],
       errorCount: 0,
       warningCount: 0,
+      busyNotice: null,
     });
 
     const isStale = (): boolean => get().activeRequestId !== requestId;
@@ -130,7 +162,7 @@ export const useCompilerStore = create<CompilerStoreState>((set, get) => ({
   cancel: () =>
     set((s) =>
       s.status === 'compiling'
-        ? { status: 'idle', activeRequestId: null, output: 'Verification cancelled.' }
+        ? { status: 'idle', activeRequestId: null, output: 'Verification cancelled.', busyNotice: null }
         : s,
     ),
 
@@ -143,7 +175,10 @@ export const useCompilerStore = create<CompilerStoreState>((set, get) => ({
       activeRequestId: null,
       errorCount: 0,
       warningCount: 0,
+      busyNotice: null,
     }),
+
+  dismissBusyNotice: () => set({ busyNotice: null }),
 }));
 
 export const useCompileStatus = (): CompileStatus => useCompilerStore((s) => s.status);

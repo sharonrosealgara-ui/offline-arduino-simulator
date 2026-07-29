@@ -80,43 +80,30 @@ export async function verify(): Promise<boolean> {
   });
 }
 
-/** Full Run sequence (spec §4.2). */
+/**
+ * Full Run sequence (spec §4.2).
+ *
+ * Compilation goes through `verify()` rather than issuing its own compile request. This
+ * used to be a second, independent compile path: it called `markCompileQueued` with a fresh
+ * id of its own, so pressing Run while a Verify was still running replaced the in-flight
+ * request's id. The main process then refused the duplicate as busy, that refusal was
+ * recorded against the new id, and the original compile's successful result was discarded
+ * as stale — the UI showed "last compile failed" after a build that had actually succeeded.
+ *
+ * Routing through verify() means there is exactly ONE compile gate, so a Run arriving during
+ * a compile is refused early (with the busy notice) and cannot disturb the running request.
+ */
 export async function run(): Promise<void> {
   const state = useAppStore.getState();
 
   // 1-2. Compile the exact current revision (unless we already have valid HEX for it).
   let hex = state.compiler.lastValidHex;
   if (state.compiler.lastValidRevision !== state.project.sourceRevision || !hex) {
-    const request = currentCompileRequest();
-    useAppStore.getState().actions.markCompileQueued(request.requestId);
-    if (!window.electronAPI?.compile) {
-      console.error('electronAPI.compile is not available');
-      useAppStore.getState().actions.applyCompileResult({
-        ok: false,
-        requestId: request.requestId,
-        sourceRevision: request.sourceRevision,
-        diagnostics: [],
-      });
-      return;
-    }
-    let result;
-    try {
-      console.log('Renderer: invoking electronAPI.compile (run)', request.requestId);
-      result = await window.electronAPI.compile(request);
-      console.log('Renderer: compile result (run)', result.requestId, result.ok, result.ok ? null : result.errorCode);
-    } catch (err) {
-      console.error('compile IPC failed', err);
-      useAppStore.getState().actions.applyCompileResult({
-        ok: false,
-        requestId: request.requestId,
-        sourceRevision: request.sourceRevision,
-        diagnostics: [],
-      });
-      return;
-    }
-    useAppStore.getState().actions.applyCompileResult(result);
-    if (!result.ok) return; // a compile failure leaves the previous firmware stopped (spec §11)
-    hex = result.hex;
+    const ok = await verify();
+    // A compile failure — or a refusal because one is already running — leaves the previous
+    // firmware stopped (spec §11).
+    if (!ok) return;
+    hex = useAppStore.getState().compiler.lastValidHex;
   }
   if (!hex) return;
 
