@@ -10,13 +10,20 @@ export default defineConfig({
       '@offline-arduino/simulator': resolve(repoRoot, 'packages/simulator/src'),
     },
   },
+  // The renderer tsconfig uses "jsx": "react-jsx" (the automatic runtime). Vitest's
+  // esbuild transform defaults to the CLASSIC runtime, which expects a React binding
+  // in scope and fails component suites with "React is not defined". Match the app.
+  esbuild: { jsx: 'automatic' },
   test: {
     globals: true,
     environment: 'node',
     include: [
       'packages/**/src/**/*.test.ts',
       'packages/**/test/**/*.test.ts',
-      'apps/desktop/tests/**/*.test.ts',
+      // `.tsx` matters: React component suites live here too, and a bare `*.test.ts`
+      // glob silently skips them (this is how the Inspector control tests went
+      // uncollected while the suite total still looked healthy).
+      'apps/desktop/tests/**/*.test.{ts,tsx}',
     ],
     // Renderer/React tests opt into jsdom via a per-file
     //   // @vitest-environment jsdom
