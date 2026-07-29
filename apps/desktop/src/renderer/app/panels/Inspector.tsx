@@ -113,18 +113,35 @@ function ComponentInspector({ component }: { component: CircuitComponent }): JSX
   const simDelta = simulation.components[component.id];
   const potValueFromSim = simDelta?.kind === 'potentiometer' && typeof simDelta.value === 'number' ? simDelta.value : undefined;
 
-  // Local slider state in percent (0..100) to avoid re-rendering every FRAME when the
-  // worker publishes component deltas. Sync only when not actively dragging.
-  const [sliderPercent, setSliderPercent] = useState<number>(() =>
-    typeof potValueFromSim === 'number' ? Math.round(potValueFromSim * 100) : Math.round(Number(component.properties.initialPosition ?? 0.5) * 100),
-  );
+  // Local slider state in percent (0..100). Initialize from the component property so
+  // the inspector shows a stable value for newly-selected parts. Do NOT call React
+  // setters during render — instead synchronize from the simulator in an effect.
+  const [sliderPercent, setSliderPercent] = useState<number>(() => Math.round(Number(component.properties.initialPosition ?? 0.5) * 100));
   const draggingRef = useRef(false);
+  const mountedRef = useRef(true);
 
-  // When the simulation drives a new value and the user is not dragging, sync the slider.
-  if (!draggingRef.current && typeof potValueFromSim === 'number') {
-    const next = Math.round(potValueFromSim * 100);
-    if (next !== sliderPercent) setSliderPercent(next);
-  }
+  // Sync simulator-driven position into the slider when the selected component or
+  // the simulator-reported value changes, but only when the user is not actively dragging.
+  useEffect(() => {
+    mountedRef.current = true;
+    if (!draggingRef.current && typeof potValueFromSim === 'number') {
+      const next = Math.round(potValueFromSim * 100);
+      setSliderPercent((prev) => (prev !== next ? next : prev));
+    }
+    return () => {
+      mountedRef.current = false;
+    };
+  }, [component.id, potValueFromSim]);
+
+  // Ensure the dragging state clears on pointerup anywhere, pointercancel, lost capture,
+  // blur on the control, or when the inspector unmounts.
+  useEffect(() => {
+    const onWindowPointerUp = () => {
+      if (draggingRef.current) draggingRef.current = false;
+    };
+    window.addEventListener('pointerup', onWindowPointerUp);
+    return () => window.removeEventListener('pointerup', onWindowPointerUp);
+  }, [component.id]);
 
   const onSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const pct = Number(e.target.value);
@@ -134,8 +151,18 @@ function ComponentInspector({ component }: { component: CircuitComponent }): JSX
     simulationClient.setControl(component.id, pos);
   };
 
-  const onSliderPointerDown = () => (draggingRef.current = true);
-  const onSliderPointerUp = () => (draggingRef.current = false);
+  const onSliderPointerDown = (e: React.PointerEvent<HTMLInputElement>) => {
+    draggingRef.current = true;
+    try {
+      (e.currentTarget as Element).setPointerCapture?.((e as unknown as PointerEvent).pointerId);
+    } catch {}
+  };
+  const onSliderPointerUp = (e?: React.PointerEvent<HTMLInputElement>) => {
+    draggingRef.current = false;
+    try {
+      if (e) (e.currentTarget as Element).releasePointerCapture?.((e as unknown as PointerEvent).pointerId);
+    } catch {}
+  };
 
   if (component.kind === 'uno-r3') {
     return (
@@ -202,6 +229,45 @@ function ComponentInspector({ component }: { component: CircuitComponent }): JSX
         </>
       )}
 
+      {/* Pushbutton inspector control: a focusable, accessible momentary button
+          used for keyboard operation. The 3D mesh continues to accept pointer presses. */}
+      {component.kind === 'pushbutton' && (
+        <>
+          <h4 className="inspectorBlock__subtitle">Pushbutton</h4>
+          <div className="field">
+            <label className="fieldLabel" htmlFor={`pb-${component.id}`}>Keyboard press</label>
+            <div className="field__row">
+              <button
+                id={`pb-${component.id}`}
+                type="button"
+                className="btn"
+                onPointerDown={() => simulationClient.setControl(component.id, true)}
+                onPointerUp={() => simulationClient.setControl(component.id, false)}
+                onPointerCancel={() => simulationClient.setControl(component.id, false)}
+                onKeyDown={(e) => {
+                  if ((e.key === ' ' || e.key === 'Enter') && !e.repeat) {
+                    e.preventDefault();
+                    simulationClient.setControl(component.id, true);
+                  }
+                }}
+                onKeyUp={(e) => {
+                  if (e.key === ' ' || e.key === 'Enter') {
+                    e.preventDefault();
+                    simulationClient.setControl(component.id, false);
+                  }
+                }}
+                onBlur={() => simulationClient.setControl(component.id, false)}
+              >
+                Press and hold (Space/Enter)
+              </button>
+            </div>
+            <div style={{ marginTop: 8 }}>
+              <small>Tip: click to focus and use Space or Enter to operate the selected button without capturing global keyboard events.</small>
+            </div>
+          </div>
+        </>
+      )}
+
       {/* Potentiometer live control: accessible slider + readout */}
       {component.kind === 'potentiometer' && (
         <>
@@ -220,12 +286,14 @@ function ComponentInspector({ component }: { component: CircuitComponent }): JSX
                 onChange={onSliderChange}
                 onPointerDown={onSliderPointerDown}
                 onPointerUp={onSliderPointerUp}
+                onPointerCancel={onSliderPointerUp}
+                onBlur={() => onSliderPointerUp()}
               />
               <span className="field__suffix">{sliderPercent}%</span>
             </div>
             <div style={{ marginTop: 8 }}>
               <small>
-                ADC: {Math.round((sliderPercent / 100) * 1023)} &nbsp;•&nbsp; Voltage: {(sliderPercent / 100 * 5).toFixed(2)} V
+                Estimated ADC (wiper position): {Math.round((sliderPercent / 100) * 1023)} &nbsp;•&nbsp; Wiper voltage estimate: {(sliderPercent / 100 * 5).toFixed(2)} V
               </small>
             </div>
           </div>

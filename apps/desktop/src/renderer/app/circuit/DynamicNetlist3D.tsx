@@ -792,17 +792,20 @@ function Pushbutton3D({ id, high }: { id: string; high: boolean }): JSX.Element 
   const pressed = delta?.kind === 'pushbutton' && delta.value === true;
   const cap = useRef<THREE.Mesh>(null);
   const pointerIdRef = useRef<number | null>(null);
+  const pressedRef = useRef(false);
 
   useFrame((_, dt) => {
     if (!cap.current) return;
     cap.current.position.y = THREE.MathUtils.damp(cap.current.position.y, pressed ? 0.11 : 0.15, 20, dt);
   });
 
-  // Pointer/keyboard handlers update the real simulation control through the SimulationClient.
+  // Pointer handlers update the real simulation control through the SimulationClient.
   const onPointerDown = useCallback((event: ThreeEvent<PointerEvent>) => {
     event.stopPropagation();
+    // Guard against duplicate down events
+    if (pressedRef.current) return;
+    pressedRef.current = true;
     try {
-      // Capture pointer so we reliably get the up/cancel even if it leaves the canvas.
       (event.target as Element | null)?.setPointerCapture?.(event.pointerId);
     } catch {
       // ignore environments without pointer capture
@@ -812,12 +815,13 @@ function Pushbutton3D({ id, high }: { id: string; high: boolean }): JSX.Element 
   }, [id]);
 
   const release = useCallback((event?: ThreeEvent<PointerEvent>) => {
+    // Only release once
+    if (!pressedRef.current) return;
+    pressedRef.current = false;
     try {
-      if (event && typeof (event as any).pointerId === 'number') {
-        (event.target as Element | null)?.releasePointerCapture?.((event as any).pointerId);
-      } else if (pointerIdRef.current !== null) {
-        // Best-effort release with stored id if available
-        (event?.target as Element | null)?.releasePointerCapture?.(pointerIdRef.current);
+      const pid = (event && typeof (event as any).pointerId === 'number') ? (event as any).pointerId : pointerIdRef.current;
+      if (pid !== null && typeof pid === 'number') {
+        (event?.target as Element | null)?.releasePointerCapture?.(pid);
       }
     } catch {}
     pointerIdRef.current = null;
@@ -836,36 +840,17 @@ function Pushbutton3D({ id, high }: { id: string; high: boolean }): JSX.Element 
 
   const onPointerOut = useCallback((event: ThreeEvent<PointerEvent>) => {
     // If the pointer leaves while pressed, release so the button cannot stick down.
-    if (pointerIdRef.current !== null) release(event);
+    if (pressedRef.current) release(event);
   }, [release]);
 
-  // Keyboard support: when the component is selected, allow Space/Enter to press it.
-  // This attaches window-level handlers when selected to avoid requiring DOM focus on
-  // the three-canvas mesh element, and keeps the three-fiber mesh typings clean.
-  const selected = useCircuit().selectedIds.includes(id);
+  // Avoid attaching global keyboard handlers that would interfere with editors and forms.
+  // Keyboard accessibility is provided in the Inspector (focusable button). Ensure the
+  // worker control is cleared on unmount/selection change so a stuck press cannot persist.
   useEffect(() => {
-    if (!selected) return;
-    const kd = (ev: KeyboardEvent) => {
-      if (ev.key === ' ' || ev.key === 'Enter') {
-        ev.preventDefault();
-        simulationClient.setControl(id, true);
-      }
-    };
-    const ku = (ev: KeyboardEvent) => {
-      if (ev.key === ' ' || ev.key === 'Enter') {
-        ev.preventDefault();
-        simulationClient.setControl(id, false);
-      }
-    };
-    window.addEventListener('keydown', kd);
-    window.addEventListener('keyup', ku);
     return () => {
-      window.removeEventListener('keydown', kd);
-      window.removeEventListener('keyup', ku);
-      // Ensure release if selection is lost while pressed
-      simulationClient.setControl(id, false);
+      if (pressedRef.current) simulationClient.setControl(id, false);
     };
-  }, [id, selected]);
+  }, [id]);
 
   return (
     <group>
