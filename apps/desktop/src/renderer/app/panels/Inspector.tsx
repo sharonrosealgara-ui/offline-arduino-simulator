@@ -9,6 +9,7 @@ import { Info, Link2, Trash2, RotateCw, Unlink } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { CircuitComponent } from '@offline-arduino/contracts/circuit';
 import { catalogEntry, type CatalogProperty } from '../circuit/component-catalog';
+import { useMomentaryControl } from './useMomentaryControl';
 import { formatOhms } from '../circuit/hardware/resistor-bands';
 import { useCircuit, useActions, useSimulation } from '../../state/store';
 
@@ -117,6 +118,9 @@ function ComponentInspector({ component }: { component: CircuitComponent }): JSX
   // the inspector shows a stable value for newly-selected parts. Do NOT call React
   // setters during render — instead synchronize from the simulator in an effect.
   const [sliderPercent, setSliderPercent] = useState<number>(() => Math.round(Number(component.properties.initialPosition ?? 0.5) * 100));
+  // Momentary pushbutton lifecycle. Always instantiated (hooks must not be conditional);
+  // it is only wired to an element when the selected component is a pushbutton.
+  const momentary = useMomentaryControl(component.id, (id, value) => simulationClient.setControl(id, value));
   const draggingRef = useRef(false);
   const mountedRef = useRef(true);
 
@@ -241,22 +245,11 @@ function ComponentInspector({ component }: { component: CircuitComponent }): JSX
                 id={`pb-${component.id}`}
                 type="button"
                 className="btn"
-                onPointerDown={() => simulationClient.setControl(component.id, true)}
-                onPointerUp={() => simulationClient.setControl(component.id, false)}
-                onPointerCancel={() => simulationClient.setControl(component.id, false)}
-                onKeyDown={(e) => {
-                  if ((e.key === ' ' || e.key === 'Enter') && !e.repeat) {
-                    e.preventDefault();
-                    simulationClient.setControl(component.id, true);
-                  }
-                }}
-                onKeyUp={(e) => {
-                  if (e.key === ' ' || e.key === 'Enter') {
-                    e.preventDefault();
-                    simulationClient.setControl(component.id, false);
-                  }
-                }}
-                onBlur={() => simulationClient.setControl(component.id, false)}
+                // Every termination path — pointer up (including outside the control),
+                // cancel, lost capture, leave, blur, selection change and unmount — routes
+                // through useMomentaryControl, which releases exactly once. See that file
+                // for the two stranding cases this fixes.
+                {...momentary}
               >
                 Press and hold (Space/Enter)
               </button>
