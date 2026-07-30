@@ -63,7 +63,21 @@ export class CircuitRuntime {
   private readonly boardPinByName = new Map<string, BoardPinBinding>();
 
   private readonly driveModeByBoardPin = new Map<string, PinDriveMode>();
-  private readonly gpioSourceByNet = new Map<string, SolverSource>();
+  /**
+   * One Thevenin source per DRIVING BOARD PIN — not per net.
+   *
+   * Keying this by net id silently discarded drivers: when two pins are wired together the
+   * netlist merges them into a single net, so both bindings share a netId and the second
+   * pin's entry overwrote the first. Exactly one source survived, so the solver could never
+   * see two disagreeing drivers and GPIO_CONTENTION was unreachable in practice. It also
+   * made the electrical answer wrong — last writer won outright instead of the two outputs
+   * fighting through their output resistances.
+   *
+   * Keyed by pin, both sources survive the merge. The solver already stamps multiple
+   * sources on one net additively, so a HIGH and a LOW output now load each other through
+   * 25 Ω each and the net settles between them, which is what a real short does.
+   */
+  private readonly gpioSourceByPin = new Map<string, SolverSource>();
 
   private readonly leds = new Map<string, { element: Extract<RuntimeElement, { kind: 'led' }>; runtime: LedRuntime }>();
   private readonly switches = new Map<string, { element: Extract<RuntimeElement, { kind: 'switch' }>; pressed: boolean }>();
@@ -162,14 +176,19 @@ export class CircuitRuntime {
     this.driveModeByBoardPin.set(binding.boardPin, drive);
     this.lastCycle = cycle;
 
+    // Keyed by pin: two pins wired to the same net must BOTH contribute a source, or the
+    // second one silently replaces the first and the conflict disappears.
     if (drive === 'output-low') {
-      this.gpioSourceByNet.set(binding.netId, { netId: binding.netId, voltage: 0, ohms: OUTPUT_RESISTANCE_OHMS });
+      this.gpioSourceByPin.set(binding.boardPin, { netId: binding.netId, voltage: 0, ohms: OUTPUT_RESISTANCE_OHMS, driver: true });
     } else if (drive === 'output-high') {
-      this.gpioSourceByNet.set(binding.netId, { netId: binding.netId, voltage: 5, ohms: OUTPUT_RESISTANCE_OHMS });
+      this.gpioSourceByPin.set(binding.boardPin, { netId: binding.netId, voltage: 5, ohms: OUTPUT_RESISTANCE_OHMS, driver: true });
     } else if (drive === 'input-pullup') {
-      this.gpioSourceByNet.set(binding.netId, { netId: binding.netId, voltage: 5, ohms: PULLUP_RESISTANCE_OHMS });
+      // Weak by construction: a pull-up is not a driver and must never read as contention.
+      this.gpioSourceByPin.set(binding.boardPin, { netId: binding.netId, voltage: 5, ohms: PULLUP_RESISTANCE_OHMS, driver: false });
     } else {
-      this.gpioSourceByNet.delete(binding.netId);
+      // Input / high-impedance: this pin stops driving and must not leave a stale source
+      // behind that would look like a second driver.
+      this.gpioSourceByPin.delete(binding.boardPin);
     }
     this.dirty = true;
   }
@@ -240,7 +259,8 @@ export class CircuitRuntime {
       branches.push({ a: element.wiper, b: element.b, ohms: wiperToBOhms });
     }
 
-    const sources = [...this.gpioSourceByNet.values()];
+    // One entry per driving pin, so two outputs on a shared net both reach the solver.
+    const sources = [...this.gpioSourceByPin.values()];
     const leds = [...this.leds.values()].map(({ element }) => ({
       id: element.id,
       anode: element.anode,

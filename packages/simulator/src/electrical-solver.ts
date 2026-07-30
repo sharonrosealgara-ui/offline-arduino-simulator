@@ -30,6 +30,16 @@ export interface SolverSource {
   netId: string;
   voltage: number;
   ohms: number;
+  /**
+   * True for a push-pull driver (a pin in OUTPUT mode); false or absent for a weak source
+   * such as an internal pull-up.
+   *
+   * Only strong drivers can be in contention with one another. A 30 kOhm pull-up sitting
+   * against an output driving low is ordinary INPUT_PULLUP wiring — a switch to ground —
+   * not a fault. Comparing raw source voltages without this distinction would flag every
+   * pull-up circuit in the course material.
+   */
+  driver?: boolean;
 }
 
 export interface SolverLed {
@@ -245,9 +255,11 @@ export function solveCircuit(input: SolveInput): SolveResult {
     const groupSources = sources.filter((s) => index.has(s.netId));
     const groupLeds = leds.filter((led) => index.has(led.anode) || index.has(led.cathode));
 
-    // Track per-source-net contributions to detect GPIO contention (two disagreeing drivers).
+    // Track per-net contributions to detect GPIO contention (two disagreeing drivers).
+    // Only push-pull drivers count: a weak pull-up opposing an output is normal wiring.
     const sourceVoltsByNet = new Map<string, number[]>();
     for (const source of groupSources) {
+      if (!source.driver) continue;
       const list = sourceVoltsByNet.get(source.netId) ?? [];
       list.push(source.voltage);
       sourceVoltsByNet.set(source.netId, list);
