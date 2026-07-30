@@ -10,6 +10,7 @@
 import { CircuitBoard, Cpu, WifiOff, HardDriveDownload, Activity } from 'lucide-react';
 import { useCompiler, useProject, useSimulation } from '../state/store';
 import { useCompilerStore } from './state/compiler-store';
+import { projectSaveStatusDisplay } from './project-save-status';
 
 type Tone = 'neutral' | 'good' | 'busy' | 'warn' | 'bad';
 
@@ -93,12 +94,12 @@ export function StatusBar(): JSX.Element {
 
       <div className="statusBar__spacer" />
 
+      {/* "Saved" has to mean a file exists, so this reads sourcePath as well as dirty —
+          a fresh Untitled Sketch is not dirty but has never been written anywhere. */}
       <Item
         icon={<HardDriveDownload size={13} aria-hidden />}
         label="Project"
-        value={project.dirty ? 'Unsaved changes' : 'Saved'}
-        tone={project.dirty ? 'warn' : 'good'}
-        title={project.dirty ? 'Press Ctrl+S to save' : 'All changes written to disk'}
+        {...projectSaveStatusDisplay(project)}
       />
 
       {/* This app makes no network requests at runtime; the indicator is a statement of

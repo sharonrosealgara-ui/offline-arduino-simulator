@@ -140,6 +140,14 @@ export interface LogicState {
 
 interface StoreActions {
   setSketch(text: string): void;
+  /**
+   * Records that the project now genuinely exists on disk at `path`.
+   *
+   * Only call this after a save or open has actually succeeded — the status bar treats
+   * `sourcePath !== null` as proof a file exists, so a cancelled or failed save must never
+   * reach here.
+   */
+  markProjectSaved(path: string): void;
   markCompileQueued(requestId: string): void;
   applyCompileResult(result: {
     ok: boolean;
@@ -370,6 +378,9 @@ export const useAppStore = create<RootState>((set) => ({
       set((state) => ({
         project: { ...state.project, sketch: text, sourceRevision: state.project.sourceRevision + 1, dirty: true },
       })),
+
+    markProjectSaved: (path) =>
+      set((state) => ({ project: { ...state.project, sourcePath: path, dirty: false } })),
 
     markCompileQueued: (requestId) =>
       set((state) => ({ compiler: { ...state.compiler, phase: 'queued', requestId } })),

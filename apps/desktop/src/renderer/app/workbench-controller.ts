@@ -140,13 +140,24 @@ export function stop(): void {
   useAppStore.getState().actions.setSimulationPhase(null, 'empty', 0);
 }
 
-export async function saveProject(): Promise<void> {
-  await window.electronAPI.saveProject(snapshotProject());
+/**
+ * Saves the project, and records the resulting path so the status bar can say "Saved".
+ *
+ * Returns whether a file was actually written. Main resolves with null when the student
+ * dismisses the save dialog; nothing is on disk in that case, so the store must be left
+ * alone — marking it saved would replace an honest "Not saved yet" with a lie.
+ */
+export async function saveProject(): Promise<boolean> {
+  const result = await window.electronAPI.saveProject(snapshotProject());
+  if (!result) return false;
+  useAppStore.getState().actions.markProjectSaved(result.path);
+  return true;
 }
 export async function openProject(): Promise<void> {
   const opened = await window.electronAPI.openProject();
   if (opened) {
     const { loadProjectIntoStore } = await import('./project-bridge');
-    loadProjectIntoStore(opened.project);
+    // The path travels with the project: an opened file is on disk by definition.
+    loadProjectIntoStore(opened.project, opened.path);
   }
 }

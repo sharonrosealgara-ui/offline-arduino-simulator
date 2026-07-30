@@ -8,7 +8,17 @@ import { useAppStore } from '../state/store';
 
 const MAIN_SOURCE = 'Sketch.ino';
 
-export function loadProjectIntoStore(project: ProjectFileDTO): void {
+/**
+ * Replaces the workspace with `project`.
+ *
+ * `sourcePath` must be the file the project was read from, or null when it did not come
+ * from a file — an example copy or a starter template exists only in memory until the
+ * student saves it. It is passed explicitly rather than carried over from the previous
+ * project because the status bar reads it as proof a file exists: leaving the outgoing
+ * project's path in place would make an unsaved example claim to be "Saved" at the path of
+ * whatever was open before it.
+ */
+export function loadProjectIntoStore(project: ProjectFileDTO, sourcePath: string | null = null): void {
   const sketch = project.sources[MAIN_SOURCE] ?? Object.values(project.sources)[0] ?? '';
   const circuit = (project.circuit as ProjectCircuit) ?? { schemaVersion: 1, components: [], wires: [], junctions: [] };
 
@@ -17,6 +27,7 @@ export function loadProjectIntoStore(project: ProjectFileDTO): void {
       ...state.project,
       projectId: project.projectId,
       name: project.name,
+      sourcePath,
       sketch,
       sourceRevision: state.project.sourceRevision + 1,
       dirty: false,

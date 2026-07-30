@@ -31,8 +31,9 @@ export interface ExampleIndexEntryDTO {
 export interface ElectronAPI {
   compile(request: CompileRequest): Promise<CompileResult>;
   cancelCompile(requestId: string): Promise<boolean>;
-  saveProject(project: ProjectFileDTO): Promise<{ path: string }>;
-  saveProjectAs(project: ProjectFileDTO): Promise<{ path: string }>;
+  /** Resolves with the written path, or null if the student dismissed the save dialog. */
+  saveProject(project: ProjectFileDTO): Promise<{ path: string } | null>;
+  saveProjectAs(project: ProjectFileDTO): Promise<{ path: string } | null>;
   openProject(): Promise<{ path: string; project: ProjectFileDTO } | null>;
   listExamples(): Promise<ExampleIndexEntryDTO[]>;
   openExampleCopy(exampleId: string): Promise<ProjectFileDTO>;
