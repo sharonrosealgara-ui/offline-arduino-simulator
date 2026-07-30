@@ -220,6 +220,35 @@ describe('focus and lifecycle termination paths', () => {
     expect(releases('pb1')).toBe(1);
   });
 
+  it('an unrelated re-render while pressed does NOT release the button', () => {
+    // The Inspector re-renders continuously while the simulation runs (cycle counter, pin
+    // states, ~60 FPS). If the release effect re-runs on every render rather than only when
+    // the selected component changes, the press is cancelled within a frame and the sketch
+    // never sees it.
+    const view = render(<Inspector />);
+    fireEvent.pointerDown(btn('pb1'), { pointerId: 1 });
+
+    view.rerender(<Inspector />);
+    view.rerender(<Inspector />);
+    view.rerender(<Inspector />);
+
+    expect(releases('pb1')).toBe(0);
+    expect(isHeldDown('pb1')).toBe(true);
+  });
+
+  it('a simulation state update while pressed does NOT release the button', () => {
+    render(<Inspector />);
+    fireEvent.pointerDown(btn('pb1'), { pointerId: 1 });
+
+    // What the running simulation actually does to this panel, several times a second.
+    for (let tick = 0; tick < 5; tick += 1) {
+      useAppStore.setState((s) => ({ simulation: { ...s.simulation, cycles: tick } }));
+    }
+
+    expect(releases('pb1')).toBe(0);
+    expect(isHeldDown('pb1')).toBe(true);
+  });
+
   it('unmounting after a normal release sends no second release', () => {
     const view = render(<Inspector />);
     fireEvent.pointerDown(btn('pb1'), { pointerId: 1 });

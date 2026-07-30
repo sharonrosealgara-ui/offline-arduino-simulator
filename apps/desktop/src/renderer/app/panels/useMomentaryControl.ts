@@ -54,23 +54,35 @@ export function useMomentaryControl(
   /** Which pointer started the press, so an unrelated pointer cannot release it. */
   const pointerIdRef = useRef<number | null>(null);
 
+  // `setControl` is typically an inline arrow, so it is a new function on every render.
+  // Depending on it directly would make `release` — and therefore the release effect below
+  // — change identity every render, and the effect's cleanup would fire on each one. The
+  // Inspector re-renders continuously while the simulation runs, so that would cancel the
+  // press within a frame and the sketch would never see it. Hold it in a ref instead, so
+  // press/release change identity only when the component being driven changes.
+  const setControlRef = useRef(setControl);
+  useEffect(() => {
+    setControlRef.current = setControl;
+  });
+
   const press = useCallback(() => {
     if (pressedRef.current) return; // already down: auto-repeat, or a duplicate pointerdown
     pressedRef.current = true;
-    setControl(componentId, true);
-  }, [componentId, setControl]);
+    setControlRef.current(componentId, true);
+  }, [componentId]);
 
   const release = useCallback(() => {
     if (!pressedRef.current) return; // never down, or already released — stay idempotent
     pressedRef.current = false;
     pointerIdRef.current = null;
-    setControl(componentId, false);
-  }, [componentId, setControl]);
+    setControlRef.current(componentId, false);
+  }, [componentId]);
 
-  // Selection change and unmount. The cleanup closes over the id that was active when the
-  // effect ran, so switching to another component releases the PREVIOUS one rather than
-  // silently leaving it held.
-  useEffect(() => release, [componentId, release]);
+  // Selection change and unmount. `release` changes identity only when `componentId` does,
+  // so this cleanup runs on exactly those two events — not on every render. It closes over
+  // the id that was active when the effect ran, so switching to another component releases
+  // the PREVIOUS one rather than silently leaving it held.
+  useEffect(() => release, [release]);
 
   // Fallback for a release that never reaches the element: capture unavailable, capture
   // already lost, or the pointer released over a different window region. Registered only
