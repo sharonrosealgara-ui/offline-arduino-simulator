@@ -334,10 +334,18 @@ function TerminalAnchor({
         <meshBasicMaterial transparent opacity={0} depthWrite={false} />
       </mesh>
 
-      {/* Dark rim: the dot has to read against the dark grid AND the green PCB it sits on. */}
+      {/*
+        Dark outline so the dot reads against the dark grid AND the green PCB it sits on.
+
+        BackSide is essential. Drawn as an ordinary front-facing sphere this larger mesh
+        enclosed the core and, being transparent, rendered after it and painted over it —
+        the anchors came out as dark blobs with the bright core completely hidden. Rendering
+        only the back faces leaves the core untouched and shows the outline just around the
+        silhouette, which is what gives contrast on both backgrounds.
+      */}
       <mesh raycast={() => null}>
         <sphereGeometry args={[look.rimRadius, 12, 10]} />
-        <meshBasicMaterial color={look.rimColor} transparent opacity={0.9} depthWrite={false} />
+        <meshBasicMaterial color={look.rimColor} side={THREE.BackSide} toneMapped={false} />
       </mesh>
 
       <mesh raycast={() => null}>

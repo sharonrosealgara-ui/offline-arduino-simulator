@@ -35,8 +35,12 @@ export const MIN_HIT_TO_CORE_RATIO = 2;
 /** Near-black rim drawn just behind the core so it separates from the green PCB. */
 export const TERMINAL_RIM_COLOR = '#05070a';
 
-/** Rim radius as a multiple of the core. */
-export const TERMINAL_RIM_SCALE = 1.55;
+/**
+ * Outline radius as a multiple of the core. Header pins sit on a 0.1 inch pitch, which is
+ * 0.1 world units, so the outline has to stay well inside that or neighbouring pins merge
+ * into one blob and become impossible to tell apart.
+ */
+export const TERMINAL_RIM_SCALE = 1.35;
 
 /**
  * Should a component's terminal anchors be drawn right now?
