@@ -10,6 +10,23 @@ productName: Offline Arduino Simulator
 executableName: offline-arduino-simulator
 copyright: Copyright © 2026
 asar: true
+
+# The Windows per-user install directory comes from the PACKAGE name, not productName.
+# app-builder-lib picks it with getWindowsInstallationDirName(appInfo, !oneClick ||
+# isPerMachine): this app is oneClick + per-user, so that flag is false and productName is
+# never consulted — it falls back to sanitizeFileName(metadata.name). With the workspace
+# name "@offline-arduino/desktop" that sanitised to "@offline-arduinodesktop", so clients
+# saw %LOCALAPPDATA%\Programs\@offline-arduinodesktop.
+#
+# There is no nsis.installDirectory option to set it directly, and switching oneClick or
+# perMachine to reach the productName branch would change the installer's behaviour. So
+# override just the packaged metadata name. Electron resolves app.getName() from
+# productName when present, so userData stays %APPDATA%\Offline Arduino Simulator and the
+# artifact filenames (built from ${productName}) are unchanged.
+#
+# packaging-install-dir.test.ts pins this so the path cannot regress to the scoped name.
+extraMetadata:
+  name: Offline Arduino Simulator
 directories:
   app: apps/desktop
   output: release
