@@ -8,7 +8,7 @@
  * system from styles/workbench.css.
  */
 import { useEffect, useRef } from 'react';
-import { X, BookOpen, Lightbulb, SlidersHorizontal, RotateCw, MonitorSmartphone } from 'lucide-react';
+import { X, BookOpen, Lightbulb, SlidersHorizontal, RotateCw, MonitorSmartphone, ToggleLeft } from 'lucide-react';
 import { STARTER_TEMPLATES, templateToProjectFile, type StarterTemplate } from './examples-data';
 import { loadProjectIntoStore } from '../project-bridge';
 
@@ -25,6 +25,7 @@ const ICONS: Record<StarterTemplate['icon'], JSX.Element> = {
   analog: <SlidersHorizontal size={18} aria-hidden />,
   motion: <RotateCw size={18} aria-hidden />,
   display: <MonitorSmartphone size={18} aria-hidden />,
+  input: <ToggleLeft size={18} aria-hidden />,
 };
 
 export function ExamplesModal({ open, onClose, onLoad }: ExamplesModalProps): JSX.Element | null {

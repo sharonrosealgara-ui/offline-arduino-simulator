@@ -12,7 +12,7 @@ export interface StarterTemplate {
   description: string;
   concepts: string[];
   /** Icon key for the card. Resolved to a lucide icon by the modal — no emoji, no image assets. */
-  icon: 'blink' | 'analog' | 'motion' | 'display';
+  icon: 'blink' | 'analog' | 'motion' | 'display' | 'input';
   ino: string;
   circuit: ProjectCircuit;
 }
@@ -91,8 +91,45 @@ void loop() {
   },
 
   {
+    id: 'pushbutton',
+    title: '02. Pushbutton (INPUT_PULLUP)',
+    description:
+      'Light the built-in LED while a button is pressed, using the internal pull-up. Pressed reads LOW.',
+    concepts: ['digitalRead', 'INPUT_PULLUP', 'active-low input'],
+    icon: 'input',
+    // Verbatim copy of resources/examples/pushbutton/Sketch.ino. starter-examples.test.ts
+    // asserts the two stay identical so the student-facing template can never drift from
+    // the packaged example.
+    ino: `const byte BUTTON_PIN = 2;
+
+void setup() {
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
+  pinMode(LED_BUILTIN, OUTPUT);
+}
+
+void loop() {
+  const bool pressed = digitalRead(BUTTON_PIN) == LOW;
+  digitalWrite(LED_BUILTIN, pressed ? HIGH : LOW);
+}
+`,
+    circuit: {
+      schemaVersion: 1,
+      components: [
+        uno(120, 140),
+        { id: 'btn1', kind: 'pushbutton', x: 470, y: 220, rotation: 0, label: 'Pushbutton', properties: {} },
+      ],
+      // Mirrors resources/examples/pushbutton/circuit.json: D2 -> leg A, leg B -> GND.
+      // No external pull-down, which would contradict INPUT_PULLUP.
+      wires: [
+        { id: 'w1', from: { componentId: 'uno1', terminalId: 'D2' }, to: { componentId: 'btn1', terminalId: 'a1' }, colorRole: 'signal-yellow', waypoints: [] },
+        { id: 'w2', from: { componentId: 'btn1', terminalId: 'b1' }, to: { componentId: 'uno1', terminalId: 'GND' }, colorRole: 'ground-black', waypoints: [] },
+      ],
+      junctions: [],
+    },
+  },
+  {
     id: 'pot-pwm',
-    title: '02. Potentiometer & PWM',
+    title: '03. Potentiometer & PWM',
     description: 'Read a 10k pot on A0 and dim an LED on PWM pin 9 with analogWrite().',
     concepts: ['analogRead', 'analogWrite', 'scaling'],
     icon: 'analog',
@@ -131,7 +168,7 @@ void loop() {
 
   {
     id: 'servo-sweep',
-    title: '03. Servo Motor Sweep',
+    title: '04. Servo Motor Sweep',
     description: 'Sweep a servo on Pin 9 from 0° to 180° and back using the Servo library.',
     concepts: ['Servo library', 'for loops', 'pulse timing'],
     icon: 'motion',
@@ -165,7 +202,7 @@ void loop() {
 
   {
     id: 'lcd-1602',
-    title: '04. LCD 1602 Display',
+    title: '05. LCD 1602 Display',
     description: 'Print two lines to a 16×2 HD44780 LCD in 4-bit mode with the LiquidCrystal library.',
     concepts: ['LiquidCrystal', 'HD44780 4-bit', 'lcd.print'],
     icon: 'display',
