@@ -18,6 +18,7 @@ import { useLayoutEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { useAppStore } from '../../../state/store';
+import { BUILTIN_LED_PIN, builtinLedTarget, builtinLedVisuals } from './builtin-led-state';
 import { createLabelStripTexture, createTextPlateTexture } from './labels';
 import { useDisposableTexture } from './useDisposableTexture';
 import {
@@ -290,24 +291,29 @@ function IcspHeader({ centerX, centerZ }: { centerX: number; centerZ: number }):
  */
 function BuiltinLed(): JSX.Element {
   const lensRef = useRef<THREE.Mesh>(null);
+  const haloRef = useRef<THREE.Mesh>(null);
   const lightRef = useRef<THREE.PointLight>(null);
   const smoothed = useRef(0);
   const spec = INDICATOR_LEDS.L;
 
   useFrame((_, delta) => {
     const state = useAppStore.getState();
-    // Prefer the LED display delta if the sketch's LED is modelled as a part; otherwise
-    // fall back to the raw D13 logic level, which is what Blink drives.
-    const pin = state.simulation.pins.D13;
-    const target = pin && pin.logic === 1 ? 1 : 0;
+    // The raw D13 logic level, which is what Blink drives. Read through getState() so the
+    // board never re-renders React at frame rate.
+    const target = builtinLedTarget(state.simulation.pins[BUILTIN_LED_PIN]);
     smoothed.current = THREE.MathUtils.damp(smoothed.current, target, 18, delta);
-    const brightness = smoothed.current;
+    const visuals = builtinLedVisuals(smoothed.current);
 
     const lens = lensRef.current;
     if (lens && lens.material instanceof THREE.MeshStandardMaterial) {
-      lens.material.emissiveIntensity = brightness * 3.2;
+      lens.material.emissiveIntensity = visuals.emissiveIntensity;
     }
-    if (lightRef.current) lightRef.current.intensity = brightness * 0.22;
+    const halo = haloRef.current;
+    if (halo && halo.material instanceof THREE.MeshBasicMaterial) {
+      halo.material.opacity = visuals.haloOpacity;
+      halo.scale.setScalar(visuals.haloScale);
+    }
+    if (lightRef.current) lightRef.current.intensity = visuals.lightIntensity;
   });
 
   return (
@@ -322,7 +328,26 @@ function BuiltinLed(): JSX.Element {
           toneMapped={false}
         />
       </mesh>
-      <pointLight ref={lightRef} color={spec.color} intensity={0} distance={0.7} decay={2} />
+      {/*
+        The lens is a true-to-scale 3.2 mm part - about ten pixels at normal zoom, sitting in
+        a row with the identical dead TX and RX indicators. On its own the lit state is far
+        too easy to miss, which is exactly what packaged acceptance reported. This additive
+        halo grows and brightens with the LED so "on" reads at a glance, without altering the
+        board's proportions. It is fully transparent while the pin is low, so it contributes
+        nothing at all to the unlit state.
+      */}
+      <mesh ref={haloRef} position={[0, mm(1.1), 0]} raycast={() => null}>
+        <sphereGeometry args={[mm(3.4), 14, 12]} />
+        <meshBasicMaterial
+          color={spec.color}
+          transparent
+          opacity={0}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+          toneMapped={false}
+        />
+      </mesh>
+      <pointLight ref={lightRef} color={spec.color} intensity={0} distance={1.4} decay={2} />
     </group>
   );
 }
