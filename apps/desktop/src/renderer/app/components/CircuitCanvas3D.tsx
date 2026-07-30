@@ -99,7 +99,11 @@ function Bench({ high }: { high: boolean }): JSX.Element {
           if (armed) document.body.style.cursor = 'copy';
         }}
         onPointerOut={() => {
-          document.body.style.cursor = '';
+          // Only clear what this plane set. It spans the whole workspace (24 x 24) and lies
+          // under everything, so an unconditional reset here wiped the 'crosshair' a terminal
+          // anchor had just set on pointer-over: moving onto a pin cleared its own affordance
+          // in the same gesture. Now the crosshair survives.
+          if (armed) document.body.style.cursor = '';
         }}
       >
         <planeGeometry args={[24, 24]} />

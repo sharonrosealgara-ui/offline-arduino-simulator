@@ -28,6 +28,7 @@ import {
 import type { CircuitComponent, Point, TerminalRef, WireColorRole } from '@offline-arduino/contracts/circuit';
 import type { ComponentDisplayDelta } from '@offline-arduino/contracts/simulator';
 import { useAppStore, useCircuit } from '../../state/store';
+import { shouldShowTerminals, terminalAnchorAppearance } from './terminal-anchor-style';
 import { createLcdScreenTexture, createTextPlateTexture } from './hardware/labels';
 import { useDisposableTexture } from './hardware/useDisposableTexture';
 import { resistorBands, formatOhms } from './hardware/resistor-bands';
@@ -144,12 +145,19 @@ export function DynamicNetlist3D({ quality = 'high' }: DynamicNetlist3DProps): J
         />
       )}
 
-      {/* Terminal anchors. Shown while wiring (so every legal target is visible) or when
-          hovering a part (so its pins can be discovered without entering wiring mode). */}
+      {/* Terminal anchors. Shown while wiring (so every legal target is visible), when
+          hovering a part (so its pins can be discovered without entering wiring mode), and
+          always for the board — see shouldShowTerminals for why the board must not be
+          gated on hover or selection. */}
       {components.map((c) => {
         const def = getComponentDefinition(c.kind);
         if (!def) return null;
-        const show = wiring || hoveredId === c.id || selected.has(c.id);
+        const show = shouldShowTerminals({
+          isBoard: c.kind === 'uno-r3',
+          wiring,
+          hovered: hoveredId === c.id,
+          selected: selected.has(c.id),
+        });
         if (!show) return null;
         return def.terminals.map((t) => {
           const position = terminalPos.get(terminalKey(c.id, t.id));
@@ -266,12 +274,8 @@ function PendingWirePreview({ anchor }: { anchor: THREE.Vector3 | undefined }): 
 // =======================================================================================
 // Terminals
 // =======================================================================================
-const TERMINAL_ROLE_COLOR: Record<string, string> = {
-  power: '#ef4444',
-  ground: '#94a3b8',
-  signal: '#38bdf8',
-  passive: '#a3e635',
-};
+// Sizes and per-role colours now live in ./terminal-anchor-style, where they are covered
+// by tests that pin the hit-target-to-dot ratio and the ON/OFF contrast.
 
 function TerminalAnchor({
   componentId,
@@ -303,10 +307,17 @@ function TerminalAnchor({
     [componentId, terminalId, role],
   );
 
-  const color = pending ? WIRE_PENDING_COLOR : hovered ? HOVER_COLOR : TERMINAL_ROLE_COLOR[role] ?? '#38bdf8';
+  const look = terminalAnchorAppearance({ role, hovered, pending });
 
   return (
     <group position={position}>
+      {/*
+        Pointer target, deliberately much larger than the drawn dot and invisible. Packaged
+        acceptance could not reliably hit the header pins when the clickable area was the dot
+        itself; since a terminal's name only appears on hover, a pin you cannot hover is a pin
+        you cannot identify. Transparent rather than `visible={false}`, because three.js skips
+        invisible objects when raycasting.
+      */}
       <mesh
         onClick={pick}
         onPointerOver={(e) => {
@@ -319,10 +330,22 @@ function TerminalAnchor({
           document.body.style.cursor = '';
         }}
       >
-        <sphereGeometry args={[hovered ? TERMINAL_RADIUS * 1.5 : TERMINAL_RADIUS, 12, 10]} />
-        <meshBasicMaterial color={color} transparent opacity={hovered || pending ? 1 : 0.85} />
+        <sphereGeometry args={[look.hitRadius, 10, 8]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
       </mesh>
-      {hovered && <FloatingLabel text={label} y={0.09} width={0.5} />}
+
+      {/* Dark rim: the dot has to read against the dark grid AND the green PCB it sits on. */}
+      <mesh raycast={() => null}>
+        <sphereGeometry args={[look.rimRadius, 12, 10]} />
+        <meshBasicMaterial color={look.rimColor} transparent opacity={0.9} depthWrite={false} />
+      </mesh>
+
+      <mesh raycast={() => null}>
+        <sphereGeometry args={[look.coreRadius, 12, 10]} />
+        <meshBasicMaterial color={look.color} toneMapped={false} />
+      </mesh>
+
+      {look.showLabel && <FloatingLabel text={label} y={0.11} width={0.5} />}
     </group>
   );
 }
