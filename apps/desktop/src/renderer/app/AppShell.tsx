@@ -20,6 +20,7 @@ import { RuntimeDiagnostics } from '../components/RuntimeDiagnostics';
 import { PaneSplitter } from '../components/PaneSplitter';
 import { ExamplesModal } from './dialogs/ExamplesModal';
 import { HelpDrawer } from './dialogs/HelpDrawer';
+import { SaveErrorDialog } from './dialogs/SaveErrorDialog';
 import { LogicAnalyzerCanvas } from './logic/LogicAnalyzerCanvas';
 import { ComponentLibrary } from './panels/ComponentLibrary';
 import { Inspector } from './panels/Inspector';
@@ -137,6 +138,9 @@ export function AppShell(): JSX.Element {
 
       <ExamplesModal open={examplesOpen} onClose={() => setExamplesOpen(false)} />
       <HelpDrawer open={helpOpen} onClose={() => setHelpOpen(false)} />
+      {/* Driven by the store, not by local state: a save can fail from the toolbar button
+          or from Ctrl+S, and neither path runs through this component. */}
+      <SaveErrorDialog />
     </div>
   );
 }
