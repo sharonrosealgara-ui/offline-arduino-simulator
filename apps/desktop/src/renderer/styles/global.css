@@ -10,6 +10,35 @@
   --font-sans: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --font-mono: 'Cascadia Code', 'Consolas', 'SFMono-Regular', Menlo, Monaco, monospace;
 
+  /* --- Scales -------------------------------------------------------------------------
+     Before these existed, padding was drawn from 18 different values, radii from 8, and
+     font sizes from 9 — four of them fractional (10.5, 11.5, 12.5, 13.5px), which round
+     inconsistently at 100% on the low-DPI panels this ships to. Snap to these. */
+  --space-1: 2px;
+  --space-2: 4px;
+  --space-3: 6px;
+  --space-4: 8px;
+  --space-5: 12px;
+  --space-6: 16px;
+  --space-7: 24px;
+
+  --radius-1: 4px;
+  --radius-2: 6px;
+  --radius-3: 8px;
+  --radius-4: 12px;
+
+  /* 12px is the floor for ANY text, including chips and badges that carry state. Body is
+     14px. Nothing smaller ships: at 1366x768 on a classroom laptop, 10px uppercase with
+     letter-spacing is past the edge of legible. */
+  --font-size-xs: 12px;
+  --font-size-sm: 13px;
+  --font-size-md: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 20px;
+
+  /* The one interactive hit-target minimum. See the note above `button` below. */
+  --hit-target-min: 32px;
+
   --bg-app: #f4f5f7;
   --bg-panel: #ffffff;
   --bg-panel-alt: #eef0f3;
