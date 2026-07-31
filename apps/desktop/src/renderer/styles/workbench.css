@@ -7,7 +7,8 @@
  * Accessibility notes that apply throughout this file:
  *  - State is never signalled by colour alone. Armed/selected/connected states each pair
  *    their colour with a border, an inset bar, or a word.
- *  - Interactive targets are >= 26px and inherit the global :focus-visible ring.
+ *  - Interactive targets are >= 32x32 (--hit-target-min) and inherit the global
+ *    :focus-visible ring. That figure is set once, in global.css.
  */
 
 /* =====================================================================================
@@ -167,7 +168,7 @@
 .placedRow__select {
   flex: 1;
   min-width: 0;
-  min-height: 30px;
+  min-height: var(--hit-target-min);
   padding: 4px 6px;
   border: none;
   background: transparent;
@@ -183,10 +184,10 @@
   flex-shrink: 0;
   display: grid;
   place-items: center;
-  width: 26px;
-  min-width: 26px;
-  height: 26px;
-  min-height: 26px;
+  width: var(--hit-target-min);
+  min-width: var(--hit-target-min);
+  height: var(--hit-target-min);
+  min-height: var(--hit-target-min);
   padding: 0;
   border: 1px solid transparent;
   border-radius: 4px;
@@ -295,7 +296,7 @@
 .textInput,
 .selectInput {
   width: 100%;
-  min-height: 30px;
+  min-height: var(--hit-target-min);
   padding: 4px 7px;
   border: 1px solid var(--border);
   border-radius: 5px;
@@ -398,14 +399,18 @@
   margin-top: 8px;
 }
 .btn--compact {
-  min-height: 26px;
+  min-height: var(--hit-target-min);
   min-width: 0;
   padding: 3px 9px;
   font-size: var(--font-size-xs);
 }
 
 .linkBtn {
-  min-height: 0;
+  /* Inline text button. It still has to be reachable, so it takes the hit-target floor as
+     height with the padding on the block axis, keeping the text on its line. */
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--hit-target-min);
   min-width: 0;
   padding: 0;
   border: none;
@@ -448,7 +453,7 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  min-height: 28px;
+  min-height: var(--hit-target-min);
   min-width: 0;
   padding: 4px 9px;
   border: none;

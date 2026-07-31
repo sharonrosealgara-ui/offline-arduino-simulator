@@ -54,3 +54,52 @@ describe('text is never smaller than the readable floor', () => {
     expect(globalCss).toMatch(/body\s*\{[^}]*font-size:\s*(?:14px|var\(--font-size-md\))/s);
   });
 });
+
+describe('interactive targets meet one standard', () => {
+  it('declares a single 32px minimum token', () => {
+    expect(tokenValue('--hit-target-min')).toBe('32px');
+  });
+
+  it('has no interactive rule declaring a smaller minimum', () => {
+    // .iconBtn was 26, .btn--compact 26, .viewportBtn 28, .placedRow__select and .textInput
+    // 30 — each overriding the global rule simply by being more specific. The rotate and
+    // delete buttons on a placed part were the smallest targets in the app.
+    //
+    // Scoped to controls on purpose: a non-interactive strip like .statusBar is entitled to
+    // be 26px tall, and a rule that flagged it would be noise the next person switches off.
+    const INTERACTIVE = [
+      '.btn',
+      '.btn--compact',
+      '.iconBtn',
+      '.viewportBtn',
+      '.placedRow__select',
+      '.textInput',
+      '.selectInput',
+      '.linkBtn',
+      '.modalHeader__close',
+      '.tabBar__tab',
+    ];
+    const violations: string[] = [];
+    for (const [, selector, body] of allCss.matchAll(/([^{}]+)\{([^}]*)\}/g)) {
+      const names = selector.trim();
+      if (!INTERACTIVE.some((name) => new RegExp(`\\${name}(?![\\w-])`).test(names))) continue;
+      for (const [, value] of body.matchAll(/min-(?:height|width):\s*(\d+)px/g)) {
+        if (Number(value) > 0 && Number(value) < 32) violations.push(`${names.replace(/\s+/g, ' ')} -> ${value}px`);
+      }
+    }
+    expect(violations).toEqual([]);
+  });
+
+  it('covers dropdowns, which the button-only rule missed', () => {
+    expect(globalCss).toMatch(/button,\s*\n?select\s*\{[^}]*min-height:\s*var\(--hit-target-min\)/s);
+  });
+
+  it('states one standard, in both stylesheets', () => {
+    // The two files used to document different numbers (36x36 vs >= 26px), which is why
+    // neither was kept.
+    expect(globalCss).toMatch(/32x32/);
+    expect(workbenchCss).toMatch(/32x32/);
+    expect(globalCss).not.toMatch(/minimum interactive target 36x36 \(prefer 40x40\)\.\n \*\//);
+    expect(workbenchCss).not.toMatch(/Interactive targets are >= 26px/);
+  });
+});

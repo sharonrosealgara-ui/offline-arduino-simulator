@@ -2,7 +2,10 @@
  * Global styles + the workbench CSS Grid layout. Source: UI_CANVAS_AND_PACKAGING_SPEC.md §2.
  *
  * High-contrast classroom theme by default (spec §8), respecting system light/dark
- * preference. Minimum body text 14px, minimum interactive target 36x36 (prefer 40x40).
+ * preference. Minimum body text 14px (--font-size-md); no text of any kind below 12px.
+ * Minimum interactive target 32x32 (--hit-target-min) — one number, defined once, and
+ * enforced by styles-contract.test.ts. The old header promised 36x36 while workbench.css
+ * promised 26px, so in practice neither was kept and icon buttons shipped at 26px.
  */
 
 :root {
@@ -99,9 +102,16 @@ textarea {
   color: inherit;
 }
 
-button {
-  min-height: 36px;
-  min-width: 36px;
+/* Every interactive control clears the hit-target floor. Dropdowns are included because the
+   UA default is roughly 24px tall and the old button-only rule never covered them. */
+button,
+select {
+  min-height: var(--hit-target-min);
+  min-width: var(--hit-target-min);
+}
+select {
+  /* A dropdown is naturally wide; only its height needs the floor. */
+  min-width: 0;
 }
 
 :focus-visible {
