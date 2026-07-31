@@ -266,8 +266,18 @@ select {
   --inspector-width: 0px;
 }
 
-/* Classroom laptops at 1366x768 and below: shed the side panels rather than force a
-   horizontal scrollbar through the whole workbench. */
+/* Classroom laptops: narrow the side panels so the workspace keeps its share, rather than
+   force a horizontal scrollbar through the whole workbench.
+
+   These tiers only ever change panel WIDTH. They must never hide a panel: whether a panel
+   is on screen belongs to the student, through the toolbar toggles (store `trayVisible` /
+   `inspectorVisible`, applied via the data attributes above).
+
+   This used to end in `.libraryPane, .inspectorPane { display: none }` below 1240px, which
+   overrode those toggles. Pressing one still flipped its aria-pressed state and still
+   reported success to a screen reader, while nothing whatsoever changed on screen — and
+   the student had no way to reach the component library or the inspector at all. A control
+   that claims to have worked is worse than one that is visibly unavailable. */
 @media (max-width: 1500px) {
   .workbench {
     --library-width: 188px;
@@ -276,12 +286,8 @@ select {
 }
 @media (max-width: 1240px) {
   .workbench {
-    --library-width: 0px;
-    --inspector-width: 0px;
-  }
-  .libraryPane,
-  .inspectorPane {
-    display: none;
+    --library-width: 168px;
+    --inspector-width: 208px;
   }
 }
 

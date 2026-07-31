@@ -30,6 +30,15 @@ const globalCss = readFileSync(
   'utf8',
 );
 
+/**
+ * The declarations only.
+ *
+ * These rules are documented in comments that quote the very patterns being banned — the
+ * `display: none` block this replaced, for instance — so a structural assertion has to read
+ * the CSS, not the prose explaining it.
+ */
+const declarations = globalCss.replace(/\/\*[\s\S]*?\*\//g, '');
+
 /** Panel widths per the media queries in global.css. */
 function panelsFor(containerWidth: number): { libraryWidth: number; inspectorWidth: number } {
   if (containerWidth <= 1240) return { libraryWidth: 168, inspectorWidth: 208 };
@@ -127,6 +136,47 @@ describe('splitter gearing', () => {
     const widths = widthsAt(1280);
     expect(workspaceTrackWidth(widths, MAX_EDITOR_PERCENT)).toBeGreaterThan(200);
     expect(editorTrackWidth(widths, MIN_EDITOR_PERCENT)).toBeGreaterThan(200);
+  });
+});
+
+describe('panel toggles stay honest at every width', () => {
+  it('never hides a panel from a media query', () => {
+    // The regression: `@media (max-width: 1240px) { .libraryPane, .inspectorPane {
+    // display: none } }` overrode the store, so below 1240px both toolbar toggles flipped
+    // aria-pressed, announced success, and changed nothing — with no way to reach the
+    // component library or the inspector at all.
+    const paneRules = [...declarations.matchAll(/\.(?:libraryPane|inspectorPane)[^{]*\{([^}]*)\}/g)];
+    expect(paneRules.length).toBeGreaterThan(0);
+    for (const [, body] of paneRules) {
+      expect(body).not.toMatch(/display:\s*none/);
+    }
+  });
+
+  it('leaves visibility to the store-controlled attributes', () => {
+    expect(declarations).toMatch(/\.workbench\[data-library='off'\]\s*\{\s*--library-width:\s*0px;\s*\}/);
+    expect(declarations).toMatch(/\.workbench\[data-inspector='off'\]\s*\{\s*--inspector-width:\s*0px;\s*\}/);
+  });
+
+  it('only narrows panels in the responsive tiers, never removes them', () => {
+    const narrowTier = /@media \(max-width: 1240px\)\s*\{([\s\S]*?)\n\}/.exec(globalCss)?.[1] ?? '';
+    expect(narrowTier).toMatch(/--library-width:\s*168px/);
+    expect(narrowTier).toMatch(/--inspector-width:\s*208px/);
+    expect(narrowTier).not.toMatch(/display:\s*none/);
+    expect(narrowTier).not.toMatch(/--library-width:\s*0px/);
+  });
+
+  it('still leaves a workable workspace at 1240px with both panels open', () => {
+    const widths = { containerWidth: 1240, libraryWidth: 168, inspectorWidth: 208 };
+    expect(workspaceTrackWidth(widths, DEFAULT_EDITOR_PERCENT)).toBeGreaterThan(
+      editorTrackWidth(widths, DEFAULT_EDITOR_PERCENT),
+    );
+  });
+
+  it('gives the workspace the whole flexible region when both panels are toggled off', () => {
+    const off = flexibleRegionWidth({ containerWidth: 1280, libraryWidth: 0, inspectorWidth: 0 });
+    const on = flexibleRegionWidth({ containerWidth: 1280, libraryWidth: 168, inspectorWidth: 208 });
+    // Toggling off must be a real, observable gain — that is the whole point of the control.
+    expect(off).toBeGreaterThan(on);
   });
 });
 

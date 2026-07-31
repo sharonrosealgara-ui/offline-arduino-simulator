@@ -6,8 +6,9 @@
  * over a full-width bottom pane; status bar along the bottom.
  *
  * The two side panels collapse (store: `layout.trayVisible` / `layout.inspectorVisible`)
- * so the workbench still fits a 1366x768 classroom laptop. On narrow viewports the CSS
- * drops them automatically — see .workbench in global.css.
+ * so the workbench still fits a 1366x768 classroom laptop. Whether a panel is on screen is
+ * the student's choice at every width: the CSS narrows the panels on small viewports but
+ * never hides one, because the toolbar toggles are the only thing entitled to do that.
  */
 import { useRef, useState } from 'react';
 import { Maximize2, Minimize2 } from 'lucide-react';
