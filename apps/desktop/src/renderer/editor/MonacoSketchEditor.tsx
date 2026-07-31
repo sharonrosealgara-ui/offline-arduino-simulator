@@ -11,6 +11,7 @@ import { useEffect, useRef, useState } from 'react';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import './monaco-languages'; // side-effect: registers editor features + cpp + json ONLY
 import { configureMonacoEnvironment } from './monaco-setup';
+import { defineWorkbenchThemes, preferredTheme, syncMonacoTheme } from './monaco-theme';
 import { useAppStore } from '../state/store';
 import { useMonacoDiagnostics } from '../app/editor/useMonacoDiagnostics';
 import { syncExternalSketch, type SketchSyncTarget } from './external-sketch-sync';
@@ -68,8 +69,14 @@ export function MonacoSketchEditor(): JSX.Element {
     const model = monaco.editor.getModel(uri) ?? monaco.editor.createModel(useAppStore.getState().project.sketch, 'arduino', uri);
     modelRef.current = model;
 
+    // Themes must exist before the editor is created, or the first paint is Monaco's
+    // built-in `vs` — a white editor in a dark workbench, which is what this replaced.
+    defineWorkbenchThemes(monaco.editor);
+    const prefersDark = window.matchMedia?.('(prefers-color-scheme: dark)');
+
     const editor = monaco.editor.create(hostRef.current!, {
       model,
+      theme: preferredTheme(prefersDark?.matches ?? false),
       automaticLayout: false,
       minimap: { enabled: false },
       fontFamily: "'Cascadia Code', 'Consolas', monospace",
@@ -138,9 +145,14 @@ export function MonacoSketchEditor(): JSX.Element {
     });
     if (hostRef.current) resizeObserver.observe(hostRef.current);
 
+    // Follows the OS theme for the life of the editor, so switching light/dark mid-lesson
+    // does not leave the editor behind.
+    const stopThemeSync = prefersDark ? syncMonacoTheme(monaco.editor, prefersDark) : () => undefined;
+
     return () => {
       sub.dispose();
       unsubscribe();
+      stopThemeSync();
       resizeObserver.disconnect();
       cancelAnimationFrame(raf);
       setEditorInstance(null);
