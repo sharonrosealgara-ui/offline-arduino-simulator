@@ -26,6 +26,13 @@ import { ComponentLibrary } from './panels/ComponentLibrary';
 import { Inspector } from './panels/Inspector';
 import { StatusBar } from './StatusBar';
 import { useAppShortcuts } from './hooks/useAppShortcuts';
+import {
+  DEFAULT_EDITOR_PERCENT,
+  MAX_EDITOR_PERCENT,
+  MIN_EDITOR_PERCENT,
+  measureWorkbench,
+  pointerDeltaToEditorPercent,
+} from './layout/workbench-region';
 import { useLayout, useCompiler, useSimulation, useActions } from '../state/store';
 
 export function AppShell(): JSX.Element {
@@ -38,9 +45,12 @@ export function AppShell(): JSX.Element {
 
   useAppShortcuts();
 
+  // The stored percentage is the editor's share of the flexible region (see
+  // workbench-region.ts), so it reaches CSS as a unitless ratio the grid track multiplies
+  // by whatever is left after the side panels.
   const setEditorWidth = (percent: number): void => {
     actions.setLayout({ editorWidthPercent: percent });
-    if (workbenchRef.current) workbenchRef.current.style.setProperty('--editor-width', `${percent}%`);
+    if (workbenchRef.current) workbenchRef.current.style.setProperty('--editor-ratio', String(percent / 100));
   };
   const setBottomHeight = (px: number): void => {
     actions.setLayout({ bottomHeightPx: px });
@@ -82,13 +92,13 @@ export function AppShell(): JSX.Element {
         <PaneSplitter
           orientation="vertical"
           ariaLabel="Resize code editor and circuit workspace"
-          min={25}
-          max={70}
+          min={MIN_EDITOR_PERCENT}
+          max={MAX_EDITOR_PERCENT}
           value={layout.editorWidthPercent}
           onDragValue={setEditorWidth}
           onCommit={setEditorWidth}
-          onRestoreDefault={() => setEditorWidth(42)}
-          pxToValue={(px) => (px / (workbenchRef.current?.clientWidth ?? 1440)) * 100}
+          onRestoreDefault={() => setEditorWidth(DEFAULT_EDITOR_PERCENT)}
+          pxToValue={(px) => pointerDeltaToEditorPercent(measureWorkbench(workbenchRef.current), px)}
           style={viewportMaximized ? { visibility: 'hidden', pointerEvents: 'none' } : undefined}
         />
 

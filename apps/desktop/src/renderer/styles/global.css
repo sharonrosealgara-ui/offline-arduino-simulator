@@ -223,20 +223,33 @@ select {
 /* --- Workbench grid ------------------------------------------------------------ */
 /* library | editor | splitter | 3D workspace | inspector, over a full-width bottom pane */
 .workbench {
-  --editor-width: 42%;
+  /* The editor's share of the FLEXIBLE region — what is left once the two side panels and
+     the splitter have taken their fixed width — not of the whole window.
+
+     It used to be `--editor-width: 42%`, and a percentage in a grid track resolves against
+     the whole container. So the panels ate the workspace instead of the editor: at 1280px
+     the canvas got 1280 - 188 - 538 - 6 - 232 = 316px, and at 1366 it got 366px. The
+     circuit is the point of the product; it should never be the narrowest pane. Measured
+     against the flexible region the same 0.42 leaves the canvas 495px at 1280 and 545px at
+     1366 — wider than the editor, as the ratio always implied. */
+  --editor-ratio: 0.42;
+  --splitter-size: 6px;
   --bottom-height: 240px;
   --library-width: 212px;
   --inspector-width: 268px;
   display: grid;
   /* `minmax(0, …)` on both flexible tracks, NOT a px minimum.
      A px minimum on the editor and canvas tracks makes the grid wider than its container
-     whenever library + editor% + inspector leaves less than that minimum — the grid then
+     whenever library + editor + inspector leaves less than that minimum — the grid then
      overflows and pushes the inspector off-screen entirely. The splitter already clamps
      the editor to 25–70%, which is what actually keeps both panes usable. */
   grid-template-columns:
     minmax(0, var(--library-width))
-    minmax(0, var(--editor-width))
-    6px
+    minmax(
+      0,
+      calc((100% - var(--library-width) - var(--inspector-width) - var(--splitter-size)) * var(--editor-ratio))
+    )
+    var(--splitter-size)
     minmax(0, 1fr)
     minmax(0, var(--inspector-width));
   grid-template-rows: minmax(280px, 1fr) 6px minmax(140px, var(--bottom-height));
