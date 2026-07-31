@@ -200,7 +200,7 @@ function UnoBoardGraphic(): JSX.Element {
 function PinGroup({ title, children }: { title: string; children: ReactNode }): JSX.Element {
   return (
     <div style={{ marginBottom: 12 }}>
-      <div style={{ marginBottom: 6, fontSize: 11, color: 'var(--text-secondary)' }}>{title}</div>
+      <div style={{ marginBottom: 6, fontSize: 12, color: 'var(--text-secondary)' }}>{title}</div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>{children}</div>
     </div>
   );
@@ -226,7 +226,7 @@ function PinBadge({
         background: `color-mix(in srgb, ${color} 16%, transparent)`,
         color: 'var(--text-primary)',
         fontFamily: 'var(--font-mono)',
-        fontSize: 11.5,
+        fontSize: 12,
       }}
     >
       {children}

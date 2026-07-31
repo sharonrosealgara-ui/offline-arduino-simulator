@@ -294,7 +294,7 @@ export function LogicAnalyzerCanvas(): JSX.Element {
         </button>
         <span
           role="status"
-          style={{ fontSize: 11, color: 'var(--text-secondary)', fontFamily: 'monospace', whiteSpace: 'nowrap' }}
+          style={{ fontSize: 12, color: 'var(--text-secondary)', fontFamily: 'monospace', whiteSpace: 'nowrap' }}
         >
           {logic.capturing ? '● capturing' : '○ stopped'} · {phase} ·{' '}
           {(logic.edgesByPin && Object.values(logic.edgesByPin).reduce((n, l) => n + l.length, 0)).toLocaleString()} edges
@@ -314,7 +314,7 @@ export function LogicAnalyzerCanvas(): JSX.Element {
                   minHeight: 0,
                   minWidth: 0,
                   padding: '2px 6px',
-                  fontSize: 11,
+                  fontSize: 12,
                   opacity: active ? 1 : 0.45,
                   borderColor: active ? 'var(--accent)' : undefined,
                   fontWeight: has ? 700 : 400,
@@ -330,10 +330,10 @@ export function LogicAnalyzerCanvas(): JSX.Element {
           <button className="btn" style={iconBtn} title="Zoom in" onClick={() => zoom(1 / 1.5)}><ZoomIn size={14} /></button>
           <button className="btn" style={iconBtn} title="Zoom out" onClick={() => zoom(1.5)}><ZoomOut size={14} /></button>
           <button className="btn" style={iconBtn} title="Fit all" onClick={fitAll}><Maximize size={14} /></button>
-          <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
+          <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
             {usPerDiv >= 1000 ? `${(usPerDiv / 1000).toFixed(2)} ms/div` : `${usPerDiv.toFixed(1)} µs/div`}
           </span>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
             <input type="checkbox" checked={followTail} onChange={(e) => setFollowTail(e.target.checked)} /> Follow
           </label>
 
@@ -422,7 +422,7 @@ function ChannelSelect({
   options: string[];
 }): JSX.Element {
   return (
-    <label style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, color: 'var(--text-secondary)' }}>
+    <label style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 12, color: 'var(--text-secondary)' }}>
       {label}
       <select value={value} onChange={(e) => onChange(e.target.value)} style={selStyle}>
         {!options.includes(value) && <option value={value}>{value}</option>}
@@ -447,13 +447,13 @@ const iconBtn: React.CSSProperties = {
   minHeight: 0,
   minWidth: 0,
   padding: '3px 7px',
-  fontSize: 11,
+  fontSize: 12,
   display: 'inline-flex',
   alignItems: 'center',
   gap: 4,
 };
 const selStyle: React.CSSProperties = {
-  fontSize: 11,
+  fontSize: 12,
   padding: '2px 4px',
   borderRadius: 4,
   border: '1px solid var(--border)',

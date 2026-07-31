@@ -70,7 +70,7 @@ export function ViewportToggle({ mode, onModeChange, lowSpec, onLowSpecChange }:
 
       <label
         title="Low-Spec Mode: reduces resolution, disables shadows and antialiasing"
-        style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, cursor: 'pointer', color: 'var(--text-secondary, #a1a1aa)' }}
+        style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, cursor: 'pointer', color: 'var(--text-secondary, #a1a1aa)' }}
       >
         <Gauge size={13} />
         <input
@@ -106,7 +106,7 @@ function SegmentButton({
         alignItems: 'center',
         gap: 5,
         padding: '4px 10px',
-        fontSize: 11,
+        fontSize: 12,
         fontWeight: active ? 600 : 400,
         border: 'none',
         cursor: 'pointer',

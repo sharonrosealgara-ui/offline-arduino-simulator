@@ -85,7 +85,7 @@ body {
   background: var(--bg-app);
   color: var(--text-primary);
   font-family: var(--font-sans);
-  font-size: 14px;
+  font-size: var(--font-size-md);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
@@ -164,7 +164,7 @@ button {
   gap: 4px;
   min-height: 26px;
   padding: 0 10px;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--text-secondary);
   background: var(--bg-panel);
   border-top: 1px solid var(--border);
@@ -356,7 +356,7 @@ button {
   height: 36px;
   padding: 0 10px;
   border-bottom: 1px solid var(--border);
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   color: var(--text-secondary);
   text-transform: uppercase;
@@ -424,7 +424,7 @@ button {
   gap: 8px;
   padding: 6px 10px;
   border-bottom: 1px solid var(--border);
-  font-size: 13px;
+  font-size: var(--font-size-sm);
   cursor: pointer;
 }
 .diagnosticRow:hover {
@@ -434,7 +434,7 @@ button {
   flex-shrink: 0;
   font-weight: 700;
   text-transform: uppercase;
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   padding: 1px 6px;
   border-radius: 4px;
 }
