@@ -56,3 +56,18 @@ export const projectFileSchema = z.object({
 });
 
 export type ProjectFile = z.infer<typeof projectFileSchema>;
+
+/**
+ * The payload of a save request.
+ *
+ * `sourcePath` is the file the renderer believes the project already lives in — a hint, not
+ * an authority: project-service only writes to it without a dialog when it is a path main
+ * itself granted this session. Validated here so a malformed or oversized value is rejected
+ * at the IPC boundary rather than reaching the filesystem.
+ */
+export const saveProjectRequestSchema = z.object({
+  project: projectFileSchema,
+  sourcePath: z.string().min(1).max(4096).nullable().default(null),
+});
+
+export type SaveProjectRequest = z.infer<typeof saveProjectRequestSchema>;

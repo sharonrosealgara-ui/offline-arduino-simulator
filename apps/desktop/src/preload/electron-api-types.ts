@@ -28,12 +28,22 @@ export interface ExampleIndexEntryDTO {
   concepts: string[];
 }
 
+/**
+ * How a save ended. Dismissing the dialog is a normal outcome and says so; only genuine
+ * disk or serialization failures reject the call.
+ */
+export type SaveOutcomeDTO = { status: 'saved'; path: string } | { status: 'cancelled' };
+
 export interface ElectronAPI {
   compile(request: CompileRequest): Promise<CompileResult>;
   cancelCompile(requestId: string): Promise<boolean>;
-  /** Resolves with the written path, or null if the student dismissed the save dialog. */
-  saveProject(project: ProjectFileDTO): Promise<{ path: string } | null>;
-  saveProjectAs(project: ProjectFileDTO): Promise<{ path: string } | null>;
+  /**
+   * Ordinary Save. Writes straight to `sourcePath` when main granted that path this
+   * session (an opened or previously saved project); otherwise asks where to put it.
+   */
+  saveProject(project: ProjectFileDTO, sourcePath: string | null): Promise<SaveOutcomeDTO>;
+  /** Save As. Always asks for a destination, even when `sourcePath` is set. */
+  saveProjectAs(project: ProjectFileDTO, sourcePath: string | null): Promise<SaveOutcomeDTO>;
   openProject(): Promise<{ path: string; project: ProjectFileDTO } | null>;
   listExamples(): Promise<ExampleIndexEntryDTO[]>;
   openExampleCopy(exampleId: string): Promise<ProjectFileDTO>;

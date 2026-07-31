@@ -7,8 +7,8 @@ import { compileRequestSchema, cancelRequestSchema } from '@offline-arduino/cont
 import { CompilerService } from '../compiler/compiler-service';
 import { validateSender } from './validate-sender';
 import { IPC_CHANNELS } from './channels';
-import { saveProject, openProjectDialog, listExamples, openExampleCopy } from '../projects/project-service';
-import { projectFileSchema } from '../projects/project-schema';
+import { saveProject, saveProjectAs, openProjectDialog, listExamples, openExampleCopy } from '../projects/project-service';
+import { saveProjectRequestSchema } from '../projects/project-schema';
 import { getInstallGuideContent, getUserGuideContent } from '../help/install-guide';
 
 const service = new CompilerService();
@@ -53,16 +53,19 @@ export function registerIpc(): void {
     return service.cancel(parsed.data);
   });
 
-  ipcMain.handle(IPC_CHANNELS.projectSave, async (event, project: unknown) => {
+  // Save and Save As are genuinely different verbs, so they are genuinely different calls.
+  // They used to be two handlers that did the same thing, which is why Save could only ever
+  // ask for a destination it already knew.
+  ipcMain.handle(IPC_CHANNELS.projectSave, async (event, request: unknown) => {
     requireValidSender(event);
-    const parsed = projectFileSchema.parse(project);
-    return await saveProject(parsed);
+    const parsed = saveProjectRequestSchema.parse(request);
+    return await saveProject(parsed.project, parsed.sourcePath);
   });
 
-  ipcMain.handle(IPC_CHANNELS.projectSaveAs, async (event, project: unknown) => {
+  ipcMain.handle(IPC_CHANNELS.projectSaveAs, async (event, request: unknown) => {
     requireValidSender(event);
-    const parsed = projectFileSchema.parse(project);
-    return await saveProject(parsed, undefined);
+    const parsed = saveProjectRequestSchema.parse(request);
+    return await saveProjectAs(parsed.project, parsed.sourcePath);
   });
 
   ipcMain.handle(IPC_CHANNELS.projectOpen, async (event) => {

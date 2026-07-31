@@ -11,6 +11,7 @@ import {
   Square,
   FolderOpen,
   Save,
+  SaveAll,
   BookOpen,
   HelpCircle,
   Gauge,
@@ -68,8 +69,23 @@ export function CommandBar({ onOpenExamples, onOpenDocumentation }: Props): JSX.
         <button className="btn" onClick={() => void controller.openProject()} title="Open Project">
           <FolderOpen size={16} /> Open
         </button>
-        <button className="btn" onClick={() => void controller.saveProject()} title="Save Project">
+        <button
+          className="btn"
+          onClick={() => void controller.saveProject()}
+          title={
+            project.sourcePath
+              ? 'Save to this project’s file (Ctrl+S)'
+              : 'Choose where to save this project (Ctrl+S)'
+          }
+        >
           <Save size={16} /> Save
+        </button>
+        <button
+          className="btn"
+          onClick={() => void controller.saveProjectAs()}
+          title="Save a copy under a new name (Ctrl+Shift+S)"
+        >
+          <SaveAll size={16} /> Save As
         </button>
         <button className="btn" onClick={onOpenExamples} title="Offline Starter Library">
           <BookOpen size={16} /> Examples

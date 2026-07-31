@@ -1,7 +1,8 @@
 /**
  * Global keyboard shortcuts.
  *
- *   Ctrl/Cmd + S       → Save project
+ *   Ctrl/Cmd + S       → Save project (to its own file once it has one)
+ *   Ctrl/Cmd + Shift+S → Save As (always asks for a destination)
  *   Ctrl/Cmd + Enter   → Verify & Run
  *   Ctrl/Cmd + Z       → Undo circuit edit
  *   Ctrl/Cmd + Shift+Z → Redo circuit edit
@@ -41,7 +42,9 @@ export function useAppShortcuts(): void {
         const key = e.key.toLowerCase();
         if (key === 's') {
           e.preventDefault();
-          void controller.saveProject();
+          // Shift makes it Save As: always choose a destination, even for a saved project.
+          if (e.shiftKey) void controller.saveProjectAs();
+          else void controller.saveProject();
         } else if (e.key === 'Enter') {
           e.preventDefault();
           void controller.run();

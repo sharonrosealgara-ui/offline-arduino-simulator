@@ -9,6 +9,7 @@ import { useAppStore } from '../state/store';
 import { useCompilerStore } from './state/compiler-store';
 import { simulationClient } from '../simulation/simulation-client';
 import { snapshotProject } from './project-bridge';
+import { SAVE_FAILURE_MESSAGE } from './save-failure-message';
 
 function currentCompileRequest(): CompileRequest {
   const state = useAppStore.getState();
@@ -141,17 +142,78 @@ export function stop(): void {
 }
 
 /**
- * Saves the project, and records the resulting path so the status bar can say "Saved".
+ * How a save command ended, from the workbench's point of view.
  *
- * Returns whether a file was actually written. Main resolves with null when the student
- * dismisses the save dialog; nothing is on disk in that case, so the store must be left
- * alone — marking it saved would replace an honest "Not saved yet" with a lie.
+ * 'busy' is not a failure: it means a save was already in flight and this press was
+ * dropped rather than raced (see `runSaveExclusively`).
  */
-export async function saveProject(): Promise<boolean> {
-  const result = await window.electronAPI.saveProject(snapshotProject());
-  if (!result) return false;
-  useAppStore.getState().actions.markProjectSaved(result.path);
-  return true;
+export type SaveResult = 'saved' | 'cancelled' | 'failed' | 'busy';
+
+/**
+ * The in-flight save, if any.
+ *
+ * Ctrl+S is easy to hit twice, and both presses snapshot the same project and write to the
+ * same file. Letting them overlap means two writers on one path and a status bar settled by
+ * whichever finishes last. Serializing at the command boundary keeps one writer per file and
+ * one authoritative outcome; the dropped press has nothing left to do anyway, because the
+ * in-flight save already carries every edit made up to the moment it started.
+ */
+let saveInFlight: Promise<SaveResult> | null = null;
+
+async function runSaveExclusively(mode: 'save' | 'save-as'): Promise<SaveResult> {
+  if (saveInFlight) return 'busy';
+  const run = performSave(mode);
+  saveInFlight = run;
+  try {
+    return await run;
+  } finally {
+    saveInFlight = null;
+  }
+}
+
+/**
+ * Runs one save and settles the store from its outcome.
+ *
+ * Resolves on every path and never rethrows: the callers are `void`-ed click and keydown
+ * handlers, so a rejection here would surface as an unhandled rejection rather than as
+ * anything the student could act on. A genuine failure becomes a message they can see and
+ * dismiss instead.
+ */
+async function performSave(mode: 'save' | 'save-as'): Promise<SaveResult> {
+  const { sourcePath } = useAppStore.getState().project;
+  const project = snapshotProject();
+
+  try {
+    const outcome =
+      mode === 'save-as'
+        ? await window.electronAPI.saveProjectAs(project, sourcePath)
+        : await window.electronAPI.saveProject(project, sourcePath);
+
+    // Dismissing the dialog changes nothing: no write happened, so the project keeps its
+    // path and its unsaved changes, and the student is told nothing they already know.
+    if (outcome.status === 'cancelled') return 'cancelled';
+
+    useAppStore.getState().actions.markProjectSaved(outcome.path);
+    return 'saved';
+  } catch (err) {
+    // The underlying error is for the console, never for the student.
+    console.error('Project save failed', err);
+    useAppStore.getState().actions.setSaveError(SAVE_FAILURE_MESSAGE);
+    return 'failed';
+  }
+}
+
+/**
+ * Ordinary Save (Ctrl+S). Writes back to the project's own file when it has one; asks for a
+ * destination only when the project has never been saved.
+ */
+export async function saveProject(): Promise<SaveResult> {
+  return await runSaveExclusively('save');
+}
+
+/** Save As (Ctrl+Shift+S). Always asks for a destination, even for an already-saved project. */
+export async function saveProjectAs(): Promise<SaveResult> {
+  return await runSaveExclusively('save-as');
 }
 export async function openProject(): Promise<void> {
   const opened = await window.electronAPI.openProject();

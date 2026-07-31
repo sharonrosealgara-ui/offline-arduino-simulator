@@ -151,22 +151,22 @@ describe('the save flow', () => {
   }
 
   it('reports saved after a write actually happened', async () => {
-    electronAPI.saveProject.mockResolvedValue({ path: SAVED_PATH });
+    electronAPI.saveProject.mockResolvedValue({ status: 'saved', path: SAVED_PATH });
     useAppStore.setState((s) => ({ project: { ...s.project, dirty: true } }));
 
-    const saved = await (await controller()).saveProject();
+    const result = await (await controller()).saveProject();
 
-    expect(saved).toBe(true);
+    expect(result).toBe('saved');
     expect(projectSaveStatus(useAppStore.getState().project)).toBe('saved');
   });
 
   it('stays "not saved yet" when the student dismisses the dialog', async () => {
-    // The whole point of the null return: a cancelled save must not look like a save.
-    electronAPI.saveProject.mockResolvedValue(null);
+    // The point of the explicit 'cancelled' status: a cancelled save must not look like one.
+    electronAPI.saveProject.mockResolvedValue({ status: 'cancelled' });
 
-    const saved = await (await controller()).saveProject();
+    const result = await (await controller()).saveProject();
 
-    expect(saved).toBe(false);
+    expect(result).toBe('cancelled');
     expect(useAppStore.getState().project.sourcePath).toBeNull();
     expect(projectSaveStatus(useAppStore.getState().project)).toBe('not-saved-yet');
   });
@@ -175,7 +175,9 @@ describe('the save flow', () => {
     electronAPI.saveProject.mockRejectedValue(new Error('EACCES: permission denied'));
     useAppStore.setState((s) => ({ project: { ...s.project, dirty: true } }));
 
-    await expect((await controller()).saveProject()).rejects.toThrow(/EACCES/);
+    // The rejection is absorbed at the command boundary and shown to the student instead;
+    // save-workflow.test.ts covers the notice itself.
+    await expect((await controller()).saveProject()).resolves.toBe('failed');
 
     // A failed write leaves the work exactly where it was: in memory only.
     expect(useAppStore.getState().project.sourcePath).toBeNull();

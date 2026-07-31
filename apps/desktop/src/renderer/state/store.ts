@@ -31,6 +31,13 @@ export interface ProjectState {
   sketch: string;
   sourceRevision: number;
   dirty: boolean;
+  /**
+   * A save that genuinely failed, as a message fit to show a student, or null.
+   *
+   * Never holds an Error, a stack, or a path: a failed save is something the student has to
+   * act on, not a diagnostic. Cancelling a dialog leaves this null — that is not a failure.
+   */
+  saveError: string | null;
 }
 
 // ---------------------------------------------------------------------------------------
@@ -148,6 +155,12 @@ interface StoreActions {
    * reach here.
    */
   markProjectSaved(path: string): void;
+  /**
+   * Shows (message) or dismisses (null) the save-failure notice.
+   *
+   * Only genuine write/serialization failures set this. A cancelled dialog must not.
+   */
+  setSaveError(message: string | null): void;
   markCompileQueued(requestId: string): void;
   applyCompileResult(result: {
     ok: boolean;
@@ -315,6 +328,7 @@ export const useAppStore = create<RootState>((set) => ({
     sketch: 'void setup() {\n\n}\n\nvoid loop() {\n\n}\n',
     sourceRevision: 0,
     dirty: false,
+    saveError: null,
   },
   compiler: {
     phase: 'idle',
@@ -380,7 +394,10 @@ export const useAppStore = create<RootState>((set) => ({
       })),
 
     markProjectSaved: (path) =>
-      set((state) => ({ project: { ...state.project, sourcePath: path, dirty: false } })),
+      // A successful save answers the failure notice, so it clears with the same set.
+      set((state) => ({ project: { ...state.project, sourcePath: path, dirty: false, saveError: null } })),
+
+    setSaveError: (message) => set((state) => ({ project: { ...state.project, saveError: message } })),
 
     markCompileQueued: (requestId) =>
       set((state) => ({ compiler: { ...state.compiler, phase: 'queued', requestId } })),
