@@ -30,8 +30,12 @@ export function ComponentLibrary(): JSX.Element {
           <CircuitBoard size={13} aria-hidden />
           <span className="explorerItem__name">{project.name}</span>
           {project.dirty && (
+            // The dot alone said nothing to a screen reader: `title` on a non-interactive
+            // span is not reliably announced and never appears on keyboard focus. The dot
+            // stays for sighted users; the words carry it for everyone else.
             <span className="explorerItem__badge" title="Unsaved changes">
-              ●
+              <span aria-hidden>●</span>
+              <span className="visuallyHidden">Unsaved changes</span>
             </span>
           )}
         </div>

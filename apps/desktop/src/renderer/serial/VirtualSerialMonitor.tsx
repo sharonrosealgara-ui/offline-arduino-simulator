@@ -75,6 +75,9 @@ export function VirtualSerialMonitor(): JSX.Element {
       <div style={{ display: 'flex', gap: 6, padding: 8, borderTop: '1px solid var(--border)' }}>
         <input
           style={{ flex: 1, padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-panel)' }}
+          // A placeholder is not an accessible name — it is announced as a hint at best and
+          // vanishes as soon as the student types.
+          aria-label="Send text to the running sketch"
           placeholder="Send to sketch…"
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -82,7 +85,11 @@ export function VirtualSerialMonitor(): JSX.Element {
             if (e.key === 'Enter') send();
           }}
         />
-        <select value={serial.lineEnding} onChange={(e) => setSerial({ lineEnding: e.target.value as typeof serial.lineEnding })}>
+        <select
+          aria-label="Line ending appended to sent text"
+          value={serial.lineEnding}
+          onChange={(e) => setSerial({ lineEnding: e.target.value as typeof serial.lineEnding })}
+        >
           <option value="none">No line ending</option>
           <option value="lf">Newline (LF)</option>
           <option value="cr">Carriage return (CR)</option>

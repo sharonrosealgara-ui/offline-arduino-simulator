@@ -119,6 +119,33 @@ select {
   outline-offset: 2px;
 }
 
+/* Panes, tab strips and scroll areas all set `overflow: hidden`, which clips an outline
+   drawn 2px OUTSIDE a control sitting against their edge — the first and last tab, the top
+   card in the library. Drawing the ring just inside keeps it whole for those, without
+   changing the ring anywhere else. */
+.tabBar__tab:focus-visible,
+.partCard:focus-visible,
+.placedRow__select:focus-visible,
+.explorerItem:focus-visible,
+.exampleCard:focus-visible {
+  outline-offset: -2px;
+}
+
+/* Available to screen readers, invisible on screen. For state a sighted user reads from a
+   shape or colour that has no text of its own. */
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
