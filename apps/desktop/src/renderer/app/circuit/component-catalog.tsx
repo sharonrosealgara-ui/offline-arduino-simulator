@@ -9,8 +9,32 @@
  * Only kinds the simulator can actually stamp into a netlist appear here. If a part is in
  * this list, placing it produces a component the solver understands; nothing here is a
  * preview of an unimplemented feature.
+ *
+ * SCALE, DELIBERATELY, IS NOT SHARED BETWEEN ICONS
+ * -----------------------------------------------
+ * Each thumbnail is normalised into its own 32x32 box: the parts keep their real
+ * proportions and their orientation and polarity cues, but an LED is not drawn 1/16th the
+ * size of an LCD. True relative scale would leave the LED a dot and the resistor a hair,
+ * which is useless in a list you pick from. The workspace is where real scale belongs.
  */
 import type { ComponentKind } from '@offline-arduino/contracts/circuit';
+import { componentPhysical } from './hardware/component-geometry';
+
+/**
+ * Fits a part's real footprint into the icon box.
+ *
+ * Returns the width and height to draw at, in the 32-unit viewBox, preserving the aspect
+ * ratio taken from the shared physical table. Nothing here restates a dimension.
+ */
+function fitToIcon(kind: ComponentKind, margin = 3): { w: number; h: number; x: number; y: number } {
+  const physical = componentPhysical(kind);
+  const box = 32 - margin * 2;
+  if (!physical) return { w: box, h: box, x: margin, y: margin };
+  const aspect = physical.body.width / physical.body.depth;
+  const w = aspect >= 1 ? box : box * aspect;
+  const h = aspect >= 1 ? box / aspect : box;
+  return { w, h, x: (32 - w) / 2, y: (32 - h) / 2 };
+}
 
 export interface CatalogTerminal {
   id: string;
@@ -46,67 +70,127 @@ const svgProps = {
   focusable: false,
 } as const;
 
-const LedThumb = (
-  <svg {...svgProps}>
-    <path d="M11 18h10v-3a5 5 0 0 0-10 0z" fill="#ff5a4d" stroke="#7f1d1d" strokeWidth="1.2" />
-    <line x1="13" y1="18" x2="13" y2="27" stroke="#9ca3af" strokeWidth="1.6" />
-    <line x1="19" y1="18" x2="19" y2="24" stroke="#9ca3af" strokeWidth="1.6" />
-    <line x1="21" y1="15" x2="21" y2="18" stroke="#111827" strokeWidth="1.6" />
-    <text x="7" y="10" fontSize="7" fill="#f87171">+</text>
-  </svg>
-);
+const LedThumb = (() => {
+  const f = fitToIcon('led');
+  // The flange is the widest feature, so the lens is sized to leave room for it.
+  const r = Math.min(f.w, f.h) / 2 / 1.18;
+  const cx = 16;
+  const cy = 15;
+  return (
+    <svg {...svgProps}>
+      {/* Lens, flange and the flat — the same cathode cue the workspace draws. */}
+      <circle cx={cx} cy={cy} r={r * 1.18} fill="#ff5a4d" opacity="0.3" stroke="#7f1d1d" strokeWidth="0.8" />
+      <circle cx={cx} cy={cy} r={r} fill="#ff5a4d" stroke="#7f1d1d" strokeWidth="1.1" />
+      <rect x={cx + r * 0.72} y={cy - r * 0.7} width={r * 0.32} height={r * 1.4} fill="#0f172a" opacity="0.8" />
+      <line x1={cx - 2.6} y1={cy + r} x2={cx - 2.6} y2="30" stroke="#9ca3af" strokeWidth="1.6" />
+      <line x1={cx + 2.6} y1={cy + r} x2={cx + 2.6} y2="27" stroke="#9ca3af" strokeWidth="1.6" />
+    </svg>
+  );
+})();
 
-const ResistorThumb = (
-  <svg {...svgProps}>
-    <line x1="2" y1="16" x2="8" y2="16" stroke="#9ca3af" strokeWidth="1.6" />
-    <line x1="24" y1="16" x2="30" y2="16" stroke="#9ca3af" strokeWidth="1.6" />
-    <rect x="8" y="11" width="16" height="10" rx="3" fill="#d9c08a" stroke="#8a6d3b" strokeWidth="1" />
-    <rect x="11" y="11" width="2" height="10" fill="#c62828" />
-    <rect x="14.5" y="11" width="2" height="10" fill="#c62828" />
-    <rect x="18" y="11" width="2" height="10" fill="#6b3b17" />
-    <rect x="21.5" y="11" width="1.5" height="10" fill="#d4af37" />
-  </svg>
-);
+const ResistorThumb = (() => {
+  const f = fitToIcon('resistor');
+  const h = Math.max(7, f.h);
+  const y = 16 - h / 2;
+  return (
+    <svg {...svgProps}>
+      <line x1="1" y1="16" x2={f.x} y2="16" stroke="#9ca3af" strokeWidth="1.6" />
+      <line x1={f.x + f.w} y1="16" x2="31" y2="16" stroke="#9ca3af" strokeWidth="1.6" />
+      <rect x={f.x} y={y} width={f.w} height={h} rx={h * 0.35} fill="#d9c08a" stroke="#8a6d3b" strokeWidth="1" />
+      {['#c62828', '#c62828', '#6b3b17', '#d4af37'].map((c, i) => (
+        <rect key={c + i} x={f.x + f.w * (0.18 + i * 0.16)} y={y} width={f.w * 0.09} height={h} fill={c} />
+      ))}
+    </svg>
+  );
+})();
 
-const ButtonThumb = (
-  <svg {...svgProps}>
-    <rect x="8" y="10" width="16" height="14" rx="2" fill="#cbd5e1" stroke="#64748b" strokeWidth="1.2" />
-    <circle cx="16" cy="17" r="4.5" fill="#e11d48" stroke="#881337" strokeWidth="1" />
-    <line x1="8" y1="24" x2="6" y2="28" stroke="#9ca3af" strokeWidth="1.4" />
-    <line x1="24" y1="24" x2="26" y2="28" stroke="#9ca3af" strokeWidth="1.4" />
-  </svg>
-);
+const ButtonThumb = (() => {
+  const f = fitToIcon('pushbutton');
+  return (
+    <svg {...svgProps}>
+      <rect x={f.x} y={f.y} width={f.w} height={f.h} rx="2" fill="#1c1f24" stroke="#495057" strokeWidth="1.1" />
+      <circle cx="16" cy="16" r={f.w * 0.29} fill="#e11d48" stroke="#881337" strokeWidth="1" />
+      {/* Four legs on the 6.5 x 4.5 pattern, in proportion. */}
+      {[
+        [-1, -1],
+        [1, -1],
+        [-1, 1],
+        [1, 1],
+      ].map(([sx, sy]) => (
+        <circle key={`${sx}${sy}`} cx={16 + sx * f.w * 0.37} cy={16 + sy * f.h * 0.27} r="1.5" fill="#c9ced6" stroke="#4b5563" strokeWidth="0.5" />
+      ))}
+    </svg>
+  );
+})();
 
-const PotThumb = (
-  <svg {...svgProps}>
-    <rect x="7" y="14" width="18" height="10" rx="1.5" fill="#1f2937" stroke="#0f172a" strokeWidth="1" />
-    <circle cx="16" cy="12" r="6" fill="#374151" stroke="#111827" strokeWidth="1.2" />
-    <line x1="16" y1="12" x2="16" y2="7" stroke="#fbbf24" strokeWidth="2" />
-    <line x1="10" y1="24" x2="10" y2="28" stroke="#9ca3af" strokeWidth="1.4" />
-    <line x1="16" y1="24" x2="16" y2="28" stroke="#9ca3af" strokeWidth="1.4" />
-    <line x1="22" y1="24" x2="22" y2="28" stroke="#9ca3af" strokeWidth="1.4" />
-  </svg>
-);
+const PotThumb = (() => {
+  const f = fitToIcon('potentiometer');
+  return (
+    <svg {...svgProps}>
+      <rect x={f.x} y={f.y} width={f.w} height={f.h} rx="1.5" fill="#1f4fa0" stroke="#173a75" strokeWidth="1" />
+      {/* Top-adjust screw, offset from centre as on the real trimmer. */}
+      <circle cx={f.x + f.w * 0.32} cy="16" r={f.w * 0.17} fill="#d8dde3" stroke="#8b939c" strokeWidth="0.8" />
+      <line
+        x1={f.x + f.w * 0.32 - f.w * 0.17}
+        y1={16 - f.w * 0.12}
+        x2={f.x + f.w * 0.32 + f.w * 0.17}
+        y2={16 + f.w * 0.12}
+        stroke="#2b2f36"
+        strokeWidth="1.4"
+      />
+      {/* Three pins in line at 2.54 mm pitch. */}
+      {[-1, 0, 1].map((i) => (
+        <circle key={i} cx={16 + i * f.w * 0.27} cy={Math.min(f.y + f.h + 1.6, 30.4)} r="1.5" fill="#c9ced6" stroke="#4b5563" strokeWidth="0.5" />
+      ))}
+    </svg>
+  );
+})();
 
-const LcdThumb = (
-  <svg {...svgProps}>
-    <rect x="3" y="8" width="26" height="16" rx="1.5" fill="#0f5132" stroke="#052e16" strokeWidth="1" />
-    <rect x="6" y="11" width="20" height="10" fill="#7fa63a" />
-    <rect x="7.5" y="13" width="11" height="1.6" fill="#12180a" />
-    <rect x="7.5" y="17" width="8" height="1.6" fill="#12180a" />
-  </svg>
-);
+const LcdThumb = (() => {
+  const f = fitToIcon('lcd1602');
+  const physical = componentPhysical('lcd1602')!;
+  const viewW = f.w * (physical.features.viewWidth / physical.body.width);
+  const viewH = f.h * (physical.features.viewDepth / physical.body.depth);
+  return (
+    <svg {...svgProps}>
+      <rect x={f.x} y={f.y} width={f.w} height={f.h} rx="1.5" fill="#0f5132" stroke="#052e16" strokeWidth="1" />
+      <rect
+        x={16 - viewW / 2}
+        y={f.y + f.h * 0.18}
+        width={viewW}
+        height={viewH}
+        fill="#7fa63a"
+        stroke="#8f959d"
+        strokeWidth="0.8"
+      />
+      <rect x={16 - viewW / 2 + 1} y={f.y + f.h * 0.28} width={viewW * 0.62} height="1.4" fill="#12180a" />
+      <rect x={16 - viewW / 2 + 1} y={f.y + f.h * 0.48} width={viewW * 0.44} height="1.4" fill="#12180a" />
+      {/* The 16-way header along one edge. */}
+      <rect x={f.x} y={f.y + f.h - 2.2} width={f.w} height="2.2" fill="#15161a" />
+    </svg>
+  );
+})();
 
-const ServoThumb = (
-  <svg {...svgProps}>
-    <rect x="7" y="12" width="15" height="12" rx="1.5" fill="#1e3a8a" stroke="#172554" strokeWidth="1" />
-    <rect x="4" y="14" width="21" height="2.5" fill="#1e40af" />
-    <circle cx="18" cy="10" r="3.5" fill="#e5e7eb" stroke="#9ca3af" strokeWidth="1" />
-    <rect x="18" y="9" width="9" height="2" rx="1" fill="#f3f4f6" />
-    <line x1="7" y1="19" x2="3" y2="19" stroke="#d1352b" strokeWidth="1.4" />
-    <line x1="7" y1="21.5" x2="3" y2="21.5" stroke="#5b3a1e" strokeWidth="1.4" />
-  </svg>
-);
+const ServoThumb = (() => {
+  const physical = componentPhysical('servo')!;
+  // The mounting tabs are wider than the case, so they set the fit.
+  const tabRatio = physical.features.tabSpan / physical.body.width;
+  const f = fitToIcon('servo', 3 + (26 - 26 / tabRatio) / 2);
+  const tabW = f.w * tabRatio;
+  return (
+    <svg {...svgProps}>
+      <rect x={16 - tabW / 2} y={f.y + f.h * 0.22} width={tabW} height={f.h * 0.16} fill="#1e40af" />
+      <rect x={f.x} y={f.y} width={f.w} height={f.h} rx="1.5" fill="#1e3a8a" stroke="#172554" strokeWidth="1" />
+      {/* Horn above the case, on the shaft. */}
+      <circle cx={16 + f.w * 0.22} cy={f.y + 3.4} r="2.6" fill="#e5e7eb" stroke="#9ca3af" strokeWidth="0.8" />
+      <rect x={16 + f.w * 0.22} y={f.y + 2.6} width="8" height="1.7" rx="0.8" fill="#f3f4f6" />
+      {/* Three-wire pigtail in the JR colours, keyed to VCC / GND / signal. */}
+      <line x1={f.x} y1={f.y + f.h * 0.58} x2="1.5" y2={f.y + f.h * 0.58} stroke="#d1352b" strokeWidth="1.3" />
+      <line x1={f.x} y1={f.y + f.h * 0.72} x2="1.5" y2={f.y + f.h * 0.72} stroke="#1c1f24" strokeWidth="1.3" />
+      <line x1={f.x} y1={f.y + f.h * 0.86} x2="1.5" y2={f.y + f.h * 0.86} stroke="#e07a1f" strokeWidth="1.3" />
+    </svg>
+  );
+})();
 
 // ---------------------------------------------------------------------------------------
 // Catalog
