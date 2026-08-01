@@ -59,6 +59,23 @@ function anchorLocal(t: TerminalAnchor): THREE.Vector3 {
   return new THREE.Vector3(schematicToWorld(t.x), 0, schematicToWorld(t.y));
 }
 
+/**
+ * The rotation that stands a unit-Y cylinder up along a direction.
+ *
+ * Takes primitive components rather than a vector so the memo below can depend on the
+ * numbers themselves. A `THREE.Vector3` built during render is a new object every time, so
+ * depending on it would recompute the quaternion on every frame-driven re-render, while
+ * depending on its fields behind the object's back is something the exhaustive-deps rule
+ * cannot verify — and rightly refuses to.
+ */
+export function conductorOrientation(dx: number, dy: number, dz: number, length: number): THREE.Quaternion {
+  const q = new THREE.Quaternion();
+  if (length > 1e-9) {
+    q.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(dx / length, dy / length, dz / length));
+  }
+  return q;
+}
+
 /** One lead, leg or flying wire, as a cylinder between two points. */
 function Conductor({
   from,
@@ -75,13 +92,15 @@ function Conductor({
   metallic: boolean;
   high: boolean;
 }): JSX.Element | null {
-  const direction = to.clone().sub(from);
-  const length = direction.length();
-  const quaternion = useMemo(() => {
-    const q = new THREE.Quaternion();
-    if (length > 1e-9) q.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.clone().normalize());
-    return q;
-  }, [direction.x, direction.y, direction.z, length]);
+  // Both endpoints are in the component's LOCAL frame; the parent group carries the part's
+  // rotation. So these primitives change when the geometry changes and not when the part is
+  // turned — which is exactly what the memo should key on.
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const dz = to.z - from.z;
+  const length = Math.hypot(dx, dy, dz);
+
+  const quaternion = useMemo(() => conductorOrientation(dx, dy, dz, length), [dx, dy, dz, length]);
 
   if (length <= 1e-9) return null;
   return (

@@ -31,7 +31,6 @@ import type {
   TerminalRef,
   WireColorRole,
 } from '@offline-arduino/contracts/circuit';
-import type { ComponentDisplayDelta } from '@offline-arduino/contracts/simulator';
 import { useAppStore, useCircuit } from '../../state/store';
 import { shouldShowTerminals, terminalAnchorAppearance } from './terminal-anchor-style';
 import { createTextPlateTexture } from './hardware/labels';

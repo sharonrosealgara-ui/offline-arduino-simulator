@@ -12,10 +12,12 @@
  * therefore negates the yaw. If someone "tidies" that sign away, every rotated part's body
  * turns one way while its anchors turn the other.
  */
+import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { getComponentDefinition } from '@offline-arduino/simulator';
 import type { ComponentKind } from '@offline-arduino/contracts/circuit';
 import { componentPhysical, physicalKinds } from '../src/renderer/app/circuit/hardware/component-geometry';
+import { conductorOrientation } from '../src/renderer/app/circuit/hardware/parts-3d';
 import {
   bodyBoundsMm,
   conductorAttachmentMm,
@@ -159,5 +161,69 @@ describe('the servo pigtail keeps its identity-mapped colours', () => {
     for (const style of Object.values(physical.conductors)) {
       expect(style.exit).toBe('pigtail');
     }
+  });
+});
+
+describe('conductor orientation survives rotation', () => {
+  /**
+   * The memoised quaternion in `Conductor` stands a unit-Y cylinder up along the lead.
+   *
+   * Its inputs are the endpoint differences in the component's LOCAL frame. Rotation is
+   * applied by the parent group's yaw, so those inputs are rotation-invariant by
+   * construction — the memo cannot go stale when a part is turned, because turning the part
+   * does not change what the memo reads. These tests hold that reasoning in place: they
+   * check the local orientation is the same at every rotation, and that composing it with
+   * the group yaw still points the lead the right way in the world.
+   */
+  const UP = new THREE.Vector3(0, 1, 0);
+
+  function localConductor(kind: ComponentKind, terminalId: string) {
+    const terminals = getComponentDefinition(kind)!.terminals;
+    const terminal = terminals.find((t) => t.id === terminalId)!;
+    const attach = conductorAttachmentMm(kind, terminalId, terminals)!;
+    const from = new THREE.Vector3(schematicToWorld(terminal.x), 0, schematicToWorld(terminal.y));
+    const to = new THREE.Vector3(attach.x / 25.4, attach.y / 25.4, attach.z / 25.4);
+    const d = to.clone().sub(from);
+    return { from, to, d, length: d.length() };
+  }
+
+  it.each(KINDS)('%s: the quaternion aims the cylinder along the lead', (kind: ComponentKind) => {
+    for (const terminal of getComponentDefinition(kind)!.terminals) {
+      const { d, length } = localConductor(kind, terminal.id);
+      const q = conductorOrientation(d.x, d.y, d.z, length);
+      const aimed = UP.clone().applyQuaternion(q);
+      const expected = d.clone().normalize();
+      expect(aimed.x).toBeCloseTo(expected.x, 10);
+      expect(aimed.y).toBeCloseTo(expected.y, 10);
+      expect(aimed.z).toBeCloseTo(expected.z, 10);
+    }
+  });
+
+  it.each(ROTATIONS)('at %i degrees the lead points the right way in the world', (degrees) => {
+    for (const kind of KINDS) {
+      for (const terminal of getComponentDefinition(kind)!.terminals) {
+        const { d, length } = localConductor(kind, terminal.id);
+        const local = conductorOrientation(d.x, d.y, d.z, length);
+
+        // The group's yaw, exactly as the renderer applies it.
+        const yaw = new THREE.Quaternion().setFromAxisAngle(UP, (-degrees * Math.PI) / 180);
+        const world = UP.clone().applyQuaternion(local).applyQuaternion(yaw);
+
+        // Independently: rotate the local direction in schematic space and map it across.
+        const rotated = rotateSchematic(d.x, d.z, degrees);
+        const expected = new THREE.Vector3(rotated.x, d.y, rotated.y).normalize();
+
+        expect(world.x).toBeCloseTo(expected.x, 10);
+        expect(world.y).toBeCloseTo(expected.y, 10);
+        expect(world.z).toBeCloseTo(expected.z, 10);
+      }
+    }
+  });
+
+  it('recomputes when the geometry changes, which is what the memo keys on', () => {
+    const a = conductorOrientation(0, 1, 0, 1);
+    const b = conductorOrientation(1, 0, 0, 1);
+    // Different inputs must give a different orientation, or the memo keys are meaningless.
+    expect(a.equals(b)).toBe(false);
   });
 });
