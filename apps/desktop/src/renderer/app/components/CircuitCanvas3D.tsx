@@ -25,8 +25,10 @@ import * as THREE from 'three';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 
-/** Schematic units → world inches. Must match DynamicNetlist3D's SCALE. */
-const SCHEMATIC_SCALE = 0.012;
+/** Schematic units → world inches. The same constant the renderer converts with, so a
+ *  dropped part lands where the pointer was: this used to be a second literal kept equal
+ *  only by a comment, on the one path that converts back from world space. */
+const SCHEMATIC_SCALE = SCHEMATIC_UNIT_INCHES;
 
 // Derived from drei's own component: `three-stdlib` exists only nested inside drei and
 // does not resolve by name from application code.
@@ -36,6 +38,7 @@ import { DynamicNetlist3D } from '../circuit/DynamicNetlist3D';
 import { CameraRig, type CameraRigHandle } from '../circuit/CameraRig';
 import { ViewportOverlay } from '../circuit/ViewportOverlay';
 import { EmptyWorkspaceHint } from '../circuit/EmptyWorkspaceHint';
+import { SCHEMATIC_UNIT_INCHES } from '../circuit/hardware/geometry-units';
 import { useAppStore, useCircuit } from '../../state/store';
 
 function SceneLighting({ high }: { high: boolean }): JSX.Element {

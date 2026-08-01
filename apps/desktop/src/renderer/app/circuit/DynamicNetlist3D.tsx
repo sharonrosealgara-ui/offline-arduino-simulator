@@ -33,9 +33,10 @@ import { createLcdScreenTexture, createTextPlateTexture } from './hardware/label
 import { useDisposableTexture } from './hardware/useDisposableTexture';
 import { resistorBands, formatOhms } from './hardware/resistor-bands';
 import { PCB_TOP, unoPinPosition } from './hardware/uno-geometry';
+import { SCHEMATIC_UNIT_INCHES } from './hardware/geometry-units';
 
-/** Schematic units → world inches. */
-const SCALE = 0.012;
+/** Schematic units → world inches. One shared constant; see geometry-units.ts. */
+const SCALE = SCHEMATIC_UNIT_INCHES;
 /** Height wires float above the bench. */
 const WIRE_LIFT = 0.14;
 /** Radius of the clickable terminal anchor. */
