@@ -80,9 +80,12 @@ const REGISTRY: Record<ComponentKind, ComponentDefinition> = {
   },
   resistor: {
     kind: 'resistor',
+    // Anchor x/y are where the leads are DRAWN; they carry no electrical meaning and the
+    // netlist never reads them. A 0.4in (40 unit) span is the formed lead spacing a
+    // 6.3mm CFR-25 body actually sits on — at 10 units the anchors were under the body.
     terminals: [
       { id: 'a', label: 'Terminal A', x: 0, y: 0, role: 'passive' },
-      { id: 'b', label: 'Terminal B', x: 10, y: 0, role: 'passive' },
+      { id: 'b', label: 'Terminal B', x: 40, y: 0, role: 'passive' },
     ],
     stamp: (component, netFor) => ({
       kind: 'resistor',
@@ -94,11 +97,13 @@ const REGISTRY: Record<ComponentKind, ComponentDefinition> = {
   },
   pushbutton: {
     kind: 'pushbutton',
+    // Omron B3F-1000 PCB pattern: 4.5mm between the legs on one side, 6.5mm between the
+    // two sides. At a 10x10 unit square all four legs sat inside a 6mm body.
     terminals: [
       { id: 'a1', label: 'Leg A1', x: 0, y: 0, role: 'passive' },
-      { id: 'a2', label: 'Leg A2', x: 10, y: 0, role: 'passive' },
-      { id: 'b1', label: 'Leg B1', x: 0, y: 10, role: 'passive' },
-      { id: 'b2', label: 'Leg B2', x: 10, y: 10, role: 'passive' },
+      { id: 'a2', label: 'Leg A2', x: 18, y: 0, role: 'passive' },
+      { id: 'b1', label: 'Leg B1', x: 0, y: 26, role: 'passive' },
+      { id: 'b2', label: 'Leg B2', x: 18, y: 26, role: 'passive' },
     ],
     // The two legs on each physical side are permanently common (spec §11.2).
     permanentlyCommonTerminals: [
@@ -116,10 +121,13 @@ const REGISTRY: Record<ComponentKind, ComponentDefinition> = {
   },
   potentiometer: {
     kind: 'potentiometer',
+    // Bourns 3386P: three terminals in line on a 2.54mm grid, the wiper in the middle.
+    // The old schematic triangle put the wiper 2.54mm off the line, where no rigid body
+    // has a pin.
     terminals: [
       { id: 'a', label: 'Terminal A', x: 0, y: 0, role: 'passive' },
-      { id: 'wiper', label: 'Wiper', x: 5, y: 10, role: 'signal' },
-      { id: 'b', label: 'Terminal B', x: 10, y: 0, role: 'passive' },
+      { id: 'wiper', label: 'Wiper', x: 10, y: 0, role: 'signal' },
+      { id: 'b', label: 'Terminal B', x: 20, y: 0, role: 'passive' },
     ],
     stamp: (component, netFor) => ({
       kind: 'potentiometer',
