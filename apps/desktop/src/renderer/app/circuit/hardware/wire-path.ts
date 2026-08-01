@@ -57,52 +57,127 @@ export const WIRE_MAX_SAG = 0.45;
  * keeps the exact position the wiring layer computed for it.
  */
 export function buildWireCurve(points: THREE.Vector3[]): THREE.CatmullRomCurve3 | null {
+  return buildWireCurveWithDiagnostics(points)?.curve ?? null;
+}
+
+/**
+ * How many times the path may be lifted and re-sampled before the fallback takes over.
+ *
+ * A Catmull-Rom is affine in its control points, so lifting the interior points by the
+ * measured shortfall recovers most of it in one pass and the remainder converges quickly.
+ * The budget exists so the loop is bounded by construction, not because it is expected to
+ * be spent: on every geometry tested it finishes in one or two passes.
+ */
+export const WIRE_MAX_CLEARANCE_ITERATIONS = 8;
+
+/**
+ * How densely the path is measured.
+ *
+ * Callers that verify clearance must sample no more densely than this, and on a nested grid
+ * (128, 256, 512 …), so every point they can see is a point this already measured. If a test
+ * sampled finer it could find a dip production never looked at.
+ */
+export const WIRE_CLEARANCE_SAMPLES = 512;
+
+/**
+ * When the correction is close enough to stop.
+ *
+ * The lift converges geometrically and lands within a few billionths of an inch of the
+ * target, but never exactly on it — comparing for equality would spin the loop to its budget
+ * and hand a converged curve to the fallback, which is precisely what happened the first
+ * time this was written. A millionth of an inch is five orders of magnitude below the
+ * epsilon it is measured against, so stopping here costs nothing real.
+ */
+export const WIRE_CLEARANCE_TOLERANCE = 1e-6;
+
+export interface WireCurveResult {
+  curve: THREE.CatmullRomCurve3;
+  /** Corrective passes used. 0 means the natural sag already cleared the bench. */
+  iterations: number;
+  /** Lowest centreline height of the returned curve. */
+  lowestCentreY: number;
+  /** Whether the returned curve meets the clearance target. */
+  clears: boolean;
+  /** True if the iteration budget ran out and the sag was removed instead. */
+  usedFallback: boolean;
+}
+
+/**
+ * The curve NetWire renders, plus what it took to get there.
+ *
+ * Clamping the sagged midpoint is not on its own a guarantee: a Catmull-Rom dips below the
+ * control points it passes through, and measured against the bundled circuits the drawn path
+ * overshot its clamped midpoint by about 0.003 in — enough to put the bottom of the tube back
+ * under the bench. So the guarantee comes from the rendered path. Sample it, lift the interior
+ * points by the shortfall, rebuild, and measure again, until the tube itself clears.
+ *
+ * Only interior points ever move. Endpoints are the terminal positions the wiring layer
+ * computed and are passed through untouched, in every branch including the fallback.
+ */
+export function buildWireCurveWithDiagnostics(points: THREE.Vector3[]): WireCurveResult | null {
   if (points.length < 2) return null;
 
-  const sagged: THREE.Vector3[] = [];
-  const midIndices: number[] = [];
+  const control: THREE.Vector3[] = [];
+  const interior: number[] = [];
+  /** Each interior point's height with no sag at all — the deterministic fallback. */
+  const flatY: number[] = [];
+
   for (let index = 0; index < points.length - 1; index += 1) {
     const from = points[index];
     const to = points[index + 1];
-    sagged.push(from);
+    control.push(from);
 
     const mid = from.clone().add(to).multiplyScalar(0.5);
+    flatY.push(mid.y);
     const sag = Math.min(WIRE_MAX_SAG, from.distanceTo(to) * WIRE_SAG_PER_INCH);
     // Rest on the bench rather than sink through it.
     mid.y = Math.max(mid.y - sag, WIRE_MIN_CENTRE_Y);
-    midIndices.push(sagged.length);
-    sagged.push(mid);
+    interior.push(control.length);
+    control.push(mid);
   }
-  sagged.push(points[points.length - 1]);
+  control.push(points[points.length - 1]);
 
-  let curve = new THREE.CatmullRomCurve3(sagged, false, 'catmullrom', 0.5);
+  const rebuild = (): THREE.CatmullRomCurve3 =>
+    new THREE.CatmullRomCurve3(control, false, 'catmullrom', 0.5);
 
-  /*
-   * A Catmull-Rom spline dips below the control points it passes through, so clamping the
-   * midpoint is not on its own a guarantee: measured against the bundled circuits the drawn
-   * path overshot its clamped midpoint by around 0.003 in, which was enough to put the
-   * bottom of the tube back under the bench.
-   *
-   * The guarantee therefore comes from the rendered path, not from the control points:
-   * sample it, and if it dips, lift the sagged midpoints by exactly the shortfall and
-   * rebuild. Endpoints are never touched, so a terminal keeps its computed position.
-   */
-  const shortfall = WIRE_MIN_CENTRE_Y - lowestSampledY(curve);
-  if (shortfall > 0) {
-    for (const index of midIndices) sagged[index].y += shortfall;
-    curve = new THREE.CatmullRomCurve3(sagged, false, 'catmullrom', 0.5);
+  let curve = rebuild();
+  let lowest = lowestSampledY(curve);
+  let iterations = 0;
+
+  while (lowest < WIRE_MIN_CENTRE_Y - WIRE_CLEARANCE_TOLERANCE && iterations < WIRE_MAX_CLEARANCE_ITERATIONS) {
+    const shortfall = WIRE_MIN_CENTRE_Y - lowest;
+    for (const index of interior) control[index].y += shortfall;
+    curve = rebuild();
+    lowest = lowestSampledY(curve);
+    iterations += 1;
   }
 
-  return curve;
+  // Deterministic terminal state: if the budget is spent, take the sag out altogether and
+  // hold the interior points at the clearance height. A path with no downward bend cannot
+  // dive under the bench, so this always terminates in a defined, safe shape.
+  let usedFallback = false;
+  if (lowest < WIRE_MIN_CENTRE_Y - WIRE_CLEARANCE_TOLERANCE) {
+    usedFallback = true;
+    for (let i = 0; i < interior.length; i += 1) {
+      control[interior[i]].y = Math.max(flatY[i], WIRE_MIN_CENTRE_Y);
+    }
+    curve = rebuild();
+    lowest = lowestSampledY(curve);
+  }
+
+  return {
+    curve,
+    iterations,
+    lowestCentreY: lowest,
+    clears: lowest >= WIRE_MIN_CENTRE_Y - WIRE_CLEARANCE_TOLERANCE,
+    usedFallback,
+  };
 }
-
-/** Finer than any caller samples, so the minimum found here is the minimum they will see. */
-const CLEARANCE_SAMPLES = 192;
 
 function lowestSampledY(curve: THREE.CatmullRomCurve3): number {
   let lowest = Infinity;
-  for (let i = 0; i <= CLEARANCE_SAMPLES; i += 1) {
-    lowest = Math.min(lowest, curve.getPoint(i / CLEARANCE_SAMPLES).y);
+  for (let i = 0; i <= WIRE_CLEARANCE_SAMPLES; i += 1) {
+    lowest = Math.min(lowest, curve.getPoint(i / WIRE_CLEARANCE_SAMPLES).y);
   }
   return lowest;
 }
