@@ -39,7 +39,12 @@ import { formatOhms } from './hardware/resistor-bands';
 import { PCB_TOP, unoPinPosition } from './hardware/uno-geometry';
 import { SCHEMATIC_UNIT_INCHES, mmToWorld } from './hardware/geometry-units';
 import { componentPhysical } from './hardware/component-geometry';
-import { boundsCenter, selectionBoundsMm } from './hardware/component-bounds';
+import {
+  boundsCenter,
+  componentYawRadians,
+  selectionBoundsMm,
+  terminalScenePosition,
+} from './hardware/component-bounds';
 import { Part3D, terminalsOf } from './hardware/parts-3d';
 import { WIRE_HEX } from './hardware/wire-colors';
 
@@ -105,11 +110,21 @@ export function DynamicNetlist3D({ quality = 'high' }: DynamicNetlist3DProps): J
             continue;
           }
         }
+        // Where the wire meets this part's own conductor. Derived from the part, not from
+        // a fixed height: a constant lift left every wire ending 3.56 mm above its lead.
+        const scene = terminalScenePosition(c, t.id, def.terminals, origin);
+        if (scene) {
+          map.set(terminalKey(c.id, t.id), new THREE.Vector3(scene.x, scene.y, scene.z));
+          continue;
+        }
         map.set(terminalKey(c.id, t.id), to3D(terminal2D(c, t.x, t.y), WIRE_LIFT));
       }
     }
     return map;
-  }, [components, to3D]);
+    // `origin` is read directly now that terminal heights come from each part, not only
+    // through to3D — so it has to be declared, or a board moved without any other change
+    // could leave endpoints behind.
+  }, [components, to3D, origin]);
 
   const wiring = pendingWireFrom !== null;
   const selected = useMemo(() => new Set(selectedIds), [selectedIds]);
@@ -431,7 +446,7 @@ function ComponentNode({ component, origin, selected, hovered, onHoverChange, hi
     () => [(component.x - origin.x) * SCALE, 0, (component.y - origin.y) * SCALE],
     [component.x, component.y, origin.x, origin.y],
   );
-  const yaw = -(component.rotation * Math.PI) / 180;
+  const yaw = componentYawRadians(component.rotation);
 
   const pointerToWorld = useCallback(
     (event: ThreeEvent<PointerEvent>): THREE.Vector3 | null => {

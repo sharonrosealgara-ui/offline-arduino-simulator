@@ -11,7 +11,7 @@
  */
 import type { ComponentKind } from '@offline-arduino/contracts/circuit';
 import { componentPhysical, type ComponentPhysical } from './component-geometry';
-import { mmToSchematic, schematicToMm } from './geometry-units';
+import { mmToSchematic, mmToWorld, schematicToMm, schematicToWorld } from './geometry-units';
 
 /** A registry terminal, reduced to what geometry needs. Anchors are in schematic units. */
 export interface TerminalAnchor {
@@ -185,4 +185,96 @@ export function conductorAttachmentMm(
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
+}
+
+// ---------------------------------------------------------------------------------------
+// Where a wire meets a part
+// ---------------------------------------------------------------------------------------
+
+/**
+ * The canonical schematic rotation: +X turns toward +Y.
+ *
+ * Exported so the wiring layer, the drawing layer and the tests all turn a point the same
+ * way instead of each carrying its own copy of the formula.
+ */
+export function rotateSchematic(x: number, y: number, degrees: number): { x: number; y: number } {
+  const radians = (degrees * Math.PI) / 180;
+  const cos = Math.cos(radians);
+  const sin = Math.sin(radians);
+  return { x: x * cos - y * sin, y: x * sin + y * cos };
+}
+
+/**
+ * The yaw a component's 3D group is given, in radians.
+ *
+ * Negated on purpose: `Object3D.rotation.y` turns +X toward −Z, while the schematic turns
+ * +X toward +Y, which maps to +Z. Without the negation a rotated part's body turns one way
+ * and its anchors the other.
+ */
+export function componentYawRadians(rotationDegrees: number): number {
+  return (-rotationDegrees * Math.PI) / 180;
+}
+
+/**
+ * The point on a terminal's conductor where a wire connects, in local millimetres.
+ *
+ * This is the fix for wires ending in midair. Wire endpoints used to sit at a fixed height
+ * above the bench (WIRE_LIFT) while the conductors drawn for each part start at the anchor
+ * at bench level, so every wire stopped 3.56 mm short of the lead it was supposed to meet —
+ * at every rotation, on every component. The height has to come from the part, not from a
+ * constant, because each part holds its leads at its own height.
+ *
+ *  - a leg or lead ('down') is met at its upper end, where it enters the body: the exact
+ *    point `conductorAttachmentMm` returns, so the two coincide by construction;
+ *  - a flying lead ('pigtail') is met at its plug, which sits on the anchor itself — a servo
+ *    is wired at the connector, not up on the case the cable runs to.
+ */
+export function terminalConnectionPointMm(
+  kind: ComponentKind,
+  terminalId: string,
+  terminals: readonly TerminalAnchor[],
+): { x: number; z: number; y: number } | undefined {
+  const physical = componentPhysical(kind);
+  const terminal = terminals.find((t) => t.id === terminalId);
+  if (!physical || !terminal) return undefined;
+
+  if (physical.conductors[terminalId]?.exit === 'pigtail') {
+    return {
+      x: schematicToMm(terminal.x),
+      z: schematicToMm(terminal.y),
+      y: physical.features.connectorHeight / 2,
+    };
+  }
+  return conductorAttachmentMm(kind, terminalId, terminals);
+}
+
+/** A component placed in the scene: what the wiring layer needs to position its terminals. */
+export interface PlacedComponent {
+  kind: ComponentKind;
+  /** Schematic position. */
+  x: number;
+  y: number;
+  rotation: number;
+}
+
+/**
+ * Where a wire must end, in world inches relative to the scene origin.
+ *
+ * The single production answer to "where is this terminal in 3D", used for wire endpoints
+ * and for the clickable anchor, so the two cannot disagree.
+ */
+export function terminalScenePosition(
+  component: PlacedComponent,
+  terminalId: string,
+  terminals: readonly TerminalAnchor[],
+  origin: { x: number; y: number },
+): { x: number; y: number; z: number } | undefined {
+  const local = terminalConnectionPointMm(component.kind, terminalId, terminals);
+  if (!local) return undefined;
+  const rotated = rotateSchematic(mmToSchematic(local.x), mmToSchematic(local.z), component.rotation);
+  return {
+    x: schematicToWorld(component.x - origin.x + rotated.x),
+    y: mmToWorld(local.y),
+    z: schematicToWorld(component.y - origin.y + rotated.y),
+  };
 }
