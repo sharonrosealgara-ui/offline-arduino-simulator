@@ -47,6 +47,7 @@ import {
 } from './hardware/component-bounds';
 import { Part3D, terminalsOf } from './hardware/parts-3d';
 import { WIRE_HEX } from './hardware/wire-colors';
+import { buildWireCurve, wireRadius } from './hardware/wire-path';
 
 /** Schematic units → world inches. One shared constant; see geometry-units.ts. */
 const SCALE = SCHEMATIC_UNIT_INCHES;
@@ -221,21 +222,7 @@ function NetWire({
   selected: boolean;
   high: boolean;
 }): JSX.Element {
-  const curve = useMemo(() => {
-    if (points.length < 2) return null;
-    const dense: THREE.Vector3[] = [];
-    for (let i = 0; i < points.length - 1; i += 1) {
-      const p = points[i];
-      const q = points[i + 1];
-      dense.push(p);
-      const mid = p.clone().add(q).multiplyScalar(0.5);
-      // Slight sag between anchors so wires read as physical jumpers, not laser beams.
-      mid.y -= Math.min(0.45, p.distanceTo(q) * 0.18);
-      dense.push(mid);
-    }
-    dense.push(points[points.length - 1]);
-    return new THREE.CatmullRomCurve3(dense, false, 'catmullrom', 0.5);
-  }, [points]);
+  const curve = useMemo(() => buildWireCurve(points), [points]);
 
   if (!curve) return <group />;
 
@@ -249,7 +236,7 @@ function NetWire({
       }}
     >
       {/* Fewer tubular segments in low-spec: a jumper reads fine at 24. */}
-      <tubeGeometry args={[curve, high ? 40 : 20, selected ? 0.026 : 0.02, high ? 8 : 5, false]} />
+      <tubeGeometry args={[curve, high ? 40 : 20, wireRadius(selected), high ? 8 : 5, false]} />
       <meshPhysicalMaterial
         color={color}
         roughness={0.85}

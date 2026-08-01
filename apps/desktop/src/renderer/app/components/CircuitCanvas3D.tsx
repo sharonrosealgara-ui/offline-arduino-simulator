@@ -39,6 +39,7 @@ import { CameraRig, type CameraRigHandle } from '../circuit/CameraRig';
 import { ViewportOverlay } from '../circuit/ViewportOverlay';
 import { EmptyWorkspaceHint } from '../circuit/EmptyWorkspaceHint';
 import { SCHEMATIC_UNIT_INCHES } from '../circuit/hardware/geometry-units';
+import { BENCH_SURFACE_Y, GRID_SURFACE_Y } from '../circuit/hardware/scene-layout';
 import { useAppStore, useCircuit } from '../../state/store';
 
 function SceneLighting({ high }: { high: boolean }): JSX.Element {
@@ -88,10 +89,10 @@ function Bench({ high }: { high: boolean }): JSX.Element {
 
   return (
     <>
-      <gridHelper args={[24, 48, '#39404a', '#252930']} position={[0, -0.09, 0]} />
+      <gridHelper args={[24, 48, '#39404a', '#252930']} position={[0, GRID_SURFACE_Y, 0]} />
       <mesh
         rotation={[-Math.PI / 2, 0, 0]}
-        position={[0, -0.095, 0]}
+        position={[0, BENCH_SURFACE_Y, 0]}
         receiveShadow={high}
         onClick={(event) => {
           if (!armed) return;
