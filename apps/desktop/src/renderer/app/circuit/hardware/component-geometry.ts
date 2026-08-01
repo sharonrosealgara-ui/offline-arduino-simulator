@@ -51,14 +51,23 @@ export interface ComponentPhysical {
   /** THE body size. Nothing else may restate it. */
   body: PhysicalBody;
   /**
-   * Where the body centre sits relative to the component origin, in mm.
+   * Where the body sits relative to the TERMINAL GROUP CENTROID, in mm.
    *
-   * `null` means "centre the body on the terminal group", computed from the registry
-   * anchors at runtime — the common case, and the one that keeps a body attached to its
-   * own pins when those pins move.
+   * Deliberately a displacement from the centroid rather than an absolute position: an
+   * absolute one would encode where the anchors are, which is the registry's business and
+   * would quietly become a second copy of it. Expressed this way the body follows its own
+   * pins when B6 moves them.
+   *
+   * `null` means no displacement — the body centres on its terminals, which is right for
+   * every part whose pins are under it. The LCD is the exception: its header runs along one
+   * edge, so the board is displaced back from the pin row.
    */
   bodyOffset: { x: number; z: number } | null;
-  /** Gap between the bench and the body's underside, mm. Leads span it. */
+  /**
+   * Gap between the bench and the body's underside, mm — the length of leg the part stands
+   * on. Conductors span it, which is what makes a pin or lead visible between the wire and
+   * the part rather than the two meeting at a hidden point.
+   */
   standoff: number;
   /** Named landmarks, mm. Purely for drawing detail; never a substitute for `body`. */
   features: Readonly<Record<string, number>>;
@@ -80,7 +89,7 @@ const LED: ComponentPhysical = {
   kind: 'led',
   body: { width: 5.0, depth: 5.0, height: 8.6 },
   bodyOffset: null,
-  standoff: 2.2,
+  standoff: 3.0,
   features: { lensDiameter: 5.0, flangeDiameter: 5.9, flangeThickness: 1.0, domeRadius: 2.5 },
   conductors: { anode: LEAD(0.25), cathode: LEAD(0.25) },
   selection: { paddingMm: 1.5, minSizeMm: 6.0 },
@@ -92,7 +101,7 @@ const RESISTOR: ComponentPhysical = {
   kind: 'resistor',
   body: { width: 6.3, depth: 2.4, height: 2.4 },
   bodyOffset: null,
-  standoff: 1.2,
+  standoff: 1.6,
   features: { bodyDiameter: 2.4, bandWidth: 0.6, formedSpan: 10.16 },
   conductors: { a: LEAD(0.275), b: LEAD(0.275) },
   selection: { paddingMm: 1.5, minSizeMm: 6.0 },
@@ -104,7 +113,7 @@ const PUSHBUTTON: ComponentPhysical = {
   kind: 'pushbutton',
   body: { width: 6.0, depth: 6.0, height: 4.3 },
   bodyOffset: null,
-  standoff: 0.5,
+  standoff: 3.0,
   features: { plungerDiameter: 3.5, plungerProjection: 0.8, legWidth: 0.5 },
   conductors: { a1: LEAD(0.25), a2: LEAD(0.25), b1: LEAD(0.25), b2: LEAD(0.25) },
   selection: { paddingMm: 1.5, minSizeMm: 7.0 },
@@ -116,7 +125,7 @@ const POTENTIOMETER: ComponentPhysical = {
   kind: 'potentiometer',
   body: { width: 9.53, depth: 9.53, height: 4.8 },
   bodyOffset: null,
-  standoff: 0.4,
+  standoff: 3.0,
   features: { screwDiameter: 3.0, screwSlotWidth: 0.8, screwInset: 1.6 },
   conductors: { a: LEAD(0.255), wiper: LEAD(0.255), b: LEAD(0.255) },
   selection: { paddingMm: 1.5, minSizeMm: 10.0 },
@@ -133,7 +142,8 @@ const POTENTIOMETER: ComponentPhysical = {
 const SERVO: ComponentPhysical = {
   kind: 'servo',
   body: { width: 23.0, depth: 12.2, height: 29.0 },
-  bodyOffset: null,
+  // The plug is on the end of a cable, so the case sits back from the terminal group.
+  bodyOffset: { x: 0, z: -14.0 },
   standoff: 0,
   features: {
     tabSpan: 32.3,
@@ -161,8 +171,10 @@ const SERVO: ComponentPhysical = {
 const LCD1602: ComponentPhysical = {
   kind: 'lcd1602',
   body: { width: 80.0, depth: 36.0, height: 1.6 },
-  bodyOffset: null,
-  standoff: 0,
+  // Header along the top edge, inset from it: 36/2 - 2.0.
+  bodyOffset: { x: 0, z: 16.0 },
+  // The module stands on its 16-way header, as it does in a breadboard.
+  standoff: 8.5,
   features: {
     bezelWidth: 71.2,
     bezelDepth: 25.2,

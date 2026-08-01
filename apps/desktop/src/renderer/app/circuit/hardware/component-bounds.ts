@@ -52,7 +52,9 @@ export function bodyCenterMm(
   physical: ComponentPhysical,
   terminals: readonly TerminalAnchor[],
 ): { x: number; z: number } {
-  return physical.bodyOffset ?? anchorCentroidMm(terminals);
+  const centroid = anchorCentroidMm(terminals);
+  const offset = physical.bodyOffset ?? { x: 0, z: 0 };
+  return { x: centroid.x + offset.x, z: centroid.z + offset.z };
 }
 
 export function bodyBoundsMm(kind: ComponentKind, terminals: readonly TerminalAnchor[]): BoundsMm | undefined {
