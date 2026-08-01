@@ -47,7 +47,14 @@ import {
 } from './hardware/component-bounds';
 import { Part3D, terminalsOf } from './hardware/parts-3d';
 import { WIRE_HEX } from './hardware/wire-colors';
-import { buildWireCurve, wireRadius } from './hardware/wire-path';
+import { buildWireCurve, wireRadius, type WireClearanceContext } from './hardware/wire-path';
+import {
+  BOARD_AT_SCENE_ORIGIN,
+  headerVolumeIdForPin,
+  unoWireClearance,
+  type AttachmentExemption,
+  type UnoPlacement,
+} from './hardware/scene-obstacles';
 
 /** Schematic units → world inches. One shared constant; see geometry-units.ts. */
 const SCALE = SCHEMATIC_UNIT_INCHES;
@@ -127,6 +134,21 @@ export function DynamicNetlist3D({ quality = 'high' }: DynamicNetlist3DProps): J
     // could leave endpoints behind.
   }, [components, to3D, origin]);
 
+  /**
+   * Where the board sits in the scene. The renderer centres the world on the Uno today, so
+   * this resolves to the origin — but it is read from the component rather than assumed, so
+   * a moved or rotated board routes correctly without further work.
+   */
+  const unoPlacement = useMemo<UnoPlacement>(() => {
+    const uno = components.find((c) => c.kind === 'uno-r3');
+    if (!uno) return BOARD_AT_SCENE_ORIGIN;
+    return {
+      x: (uno.x - origin.x) * SCALE,
+      z: (uno.y - origin.y) * SCALE,
+      rotationDegrees: uno.rotation,
+    };
+  }, [components, origin]);
+
   const wiring = pendingWireFrom !== null;
   const selected = useMemo(() => new Set(selectedIds), [selectedIds]);
 
@@ -137,6 +159,18 @@ export function DynamicNetlist3D({ quality = 'high' }: DynamicNetlist3DProps): J
         const b = terminalPos.get(terminalKey(w.to.componentId, w.to.terminalId));
         if (!a || !b) return null;
         const mids = w.waypoints.map((wp) => to3D(wp, WIRE_LIFT));
+        // A wire end plugged into a board header legitimately starts inside that connector —
+        // and inside nothing else. Exempt exactly the header holding its own pin.
+        const exemptions: AttachmentExemption[] = [];
+        for (const [end, at] of [
+          [w.from, a],
+          [w.to, b],
+        ] as const) {
+          const component = components.find((c) => c.id === end.componentId);
+          if (component?.kind !== 'uno-r3') continue;
+          const volumeId = headerVolumeIdForPin(end.terminalId);
+          if (volumeId) exemptions.push({ point: at, volumeId });
+        }
         return (
           <NetWire
             key={w.id}
@@ -145,6 +179,7 @@ export function DynamicNetlist3D({ quality = 'high' }: DynamicNetlist3DProps): J
             color={selected.has(w.id) ? SELECTED_COLOR : WIRE_HEX[w.colorRole]}
             selected={selected.has(w.id)}
             high={high}
+            clearance={unoWireClearance(unoPlacement, exemptions)}
           />
         );
       })}
@@ -215,14 +250,16 @@ function NetWire({
   color,
   selected,
   high,
+  clearance,
 }: {
   id: string;
   points: THREE.Vector3[];
   color: string;
   selected: boolean;
   high: boolean;
+  clearance: WireClearanceContext;
 }): JSX.Element {
-  const curve = useMemo(() => buildWireCurve(points), [points]);
+  const curve = useMemo(() => buildWireCurve(points, clearance), [points, clearance]);
 
   if (!curve) return <group />;
 

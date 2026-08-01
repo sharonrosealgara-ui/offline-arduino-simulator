@@ -234,8 +234,8 @@ describe('the loop is bounded and terminates deterministically', () => {
   });
 
   it('samples densely enough that a nested test grid cannot see past it', () => {
-    expect(WIRE_CLEARANCE_SAMPLES).toBe(512);
-    // 512 / 256 must be a whole number, or a test sample could miss production's grid.
+    expect(WIRE_CLEARANCE_SAMPLES).toBe(4096);
+    // Production's grid must contain the verification grid.
     expect(WIRE_CLEARANCE_SAMPLES % SAMPLES).toBe(0);
   });
 
