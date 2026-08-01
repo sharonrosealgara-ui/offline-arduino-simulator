@@ -24,7 +24,13 @@ import {
   getComponentDefinition,
   terminalKey,
 } from '@offline-arduino/simulator/circuit-model/component-registry';
-import type { CircuitComponent, Point, TerminalRef, WireColorRole } from '@offline-arduino/contracts/circuit';
+import type {
+  CircuitComponent,
+  ComponentKind,
+  Point,
+  TerminalRef,
+  WireColorRole,
+} from '@offline-arduino/contracts/circuit';
 import type { ComponentDisplayDelta } from '@offline-arduino/contracts/simulator';
 import { useAppStore, useCircuit } from '../../state/store';
 import { shouldShowTerminals, terminalAnchorAppearance } from './terminal-anchor-style';
@@ -32,8 +38,10 @@ import { createTextPlateTexture } from './hardware/labels';
 import { useDisposableTexture } from './hardware/useDisposableTexture';
 import { formatOhms } from './hardware/resistor-bands';
 import { PCB_TOP, unoPinPosition } from './hardware/uno-geometry';
-import { SCHEMATIC_UNIT_INCHES } from './hardware/geometry-units';
-import { Part3D } from './hardware/parts-3d';
+import { SCHEMATIC_UNIT_INCHES, mmToWorld } from './hardware/geometry-units';
+import { componentPhysical } from './hardware/component-geometry';
+import { boundsCenter, selectionBoundsMm } from './hardware/component-bounds';
+import { Part3D, terminalsOf } from './hardware/parts-3d';
 import { WIRE_HEX } from './hardware/wire-colors';
 
 /** Schematic units → world inches. One shared constant; see geometry-units.ts. */
@@ -510,9 +518,13 @@ function ComponentNode({ component, origin, selected, hovered, onHoverChange, hi
       }}
     >
       {renderKind(component, high)}
-      {(selected || hovered) && <SelectionRing selected={selected} />}
+      {(selected || hovered) && <SelectionRing kind={component.kind} selected={selected} />}
       {(selected || hovered) && (
-        <FloatingLabel text={describe(component)} y={0.42} width={0.92} />
+        <FloatingLabel
+          text={describe(component)}
+          y={labelHeightFor(component.kind)}
+          width={0.92}
+        />
       )}
     </group>
   );
@@ -532,10 +544,32 @@ function describe(c: CircuitComponent): string {
   }
 }
 
-function SelectionRing({ selected }: { selected: boolean }): JSX.Element {
+/**
+ * The footprint outline under a selected or hovered part.
+ *
+ * This was a fixed 0.15-0.19 inch ring for every kind, which is meaningless once parts are
+ * their real size: on an 80 mm LCD it read as a dot near one corner, and inside a servo it
+ * disappeared under the case. It is now derived from the same footprint the wiring uses, so
+ * it frames whatever it is drawn around.
+ */
+/** Label height: above the part, so it never sits across the body or its terminals. */
+function labelHeightFor(kind: ComponentKind): number {
+  const physical = componentPhysical(kind);
+  if (!physical) return 0.42;
+  return mmToWorld(physical.standoff + physical.body.height) + 0.18;
+}
+
+function SelectionRing({ kind, selected }: { kind: ComponentKind; selected: boolean }): JSX.Element {
+  const bounds = selectionBoundsMm(kind, terminalsOf(kind));
+  const center = bounds ? boundsCenter(bounds) : { x: 0, z: 0 };
+  const width = bounds ? mmToWorld(bounds.maxX - bounds.minX) : 0.34;
+  const depth = bounds ? mmToWorld(bounds.maxZ - bounds.minZ) : 0.34;
   return (
-    <mesh position={[0, 0.005, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-      <ringGeometry args={[0.15, 0.19, 32]} />
+    <mesh
+      position={[mmToWorld(center.x), 0.005, mmToWorld(center.z)]}
+      rotation={[-Math.PI / 2, 0, 0]}
+    >
+      <ringGeometry args={[Math.max(width, depth) / 2, Math.max(width, depth) / 2 + 0.04, 48]} />
       <meshBasicMaterial
         color={selected ? SELECTED_COLOR : HOVER_COLOR}
         transparent

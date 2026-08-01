@@ -18,7 +18,11 @@ import { getComponentDefinition } from '@offline-arduino/simulator';
 import type { CircuitComponent, ComponentKind } from '@offline-arduino/contracts/circuit';
 import { ComponentGlyph } from '../src/renderer/circuit/renderers/ComponentGlyph';
 import { componentPhysical, physicalKinds } from '../src/renderer/app/circuit/hardware/component-geometry';
-import { bodyBoundsMm, selectionBoundsMm } from '../src/renderer/app/circuit/hardware/component-bounds';
+import {
+  bodyBoundsMm,
+  labelOffsetSchematic,
+  selectionBoundsMm,
+} from '../src/renderer/app/circuit/hardware/component-bounds';
 import { mmToSchematic } from '../src/renderer/app/circuit/hardware/geometry-units';
 
 const KINDS = physicalKinds();
@@ -200,5 +204,43 @@ describe('the board keeps its own geometry', () => {
     const board = svg.querySelector('rect');
     // 68.6 mm at 0.254 mm per unit = 270 units.
     expect(Number(board!.getAttribute('width'))).toBeCloseTo(270, 0);
+  });
+});
+
+describe('3D selection bounds and labels are derived, not fixed', () => {
+  it('sizes the ring from each part, so it is not one size for all', () => {
+    // It used to be a fixed 0.15-0.19 inch ring for every kind: a dot on an 80 mm LCD and
+    // invisible inside a servo.
+    const size = (kind: ComponentKind): number => {
+      const b = selectionBoundsMm(kind, getComponentDefinition(kind)!.terminals)!;
+      return Math.max(b.maxX - b.minX, b.maxZ - b.minZ);
+    };
+    expect(size('lcd1602')).toBeGreaterThan(size('led') * 4);
+    expect(size('servo')).toBeGreaterThan(size('resistor'));
+  });
+
+  it('encloses the whole part, including its leads', () => {
+    for (const kind of KINDS) {
+      const terminals = getComponentDefinition(kind)!.terminals;
+      const selection = selectionBoundsMm(kind, terminals)!;
+      const body = bodyBoundsMm(kind, terminals)!;
+      expect(selection.minX).toBeLessThanOrEqual(body.minX);
+      expect(selection.maxX).toBeGreaterThanOrEqual(body.maxX);
+      expect(selection.minZ).toBeLessThanOrEqual(body.minZ);
+      expect(selection.maxZ).toBeGreaterThanOrEqual(body.maxZ);
+    }
+  });
+
+  it('places the 2D label clear of the part rather than across it', () => {
+    for (const kind of KINDS) {
+      const terminals = getComponentDefinition(kind)!.terminals;
+      const label = labelOffsetSchematic(kind, terminals)!;
+      const selection = selectionBoundsMm(kind, terminals)!;
+      // Below the selection bounds, so it covers neither the body nor a terminal.
+      expect(label.y).toBeGreaterThan(mmToSchematic(selection.maxZ));
+      for (const terminal of terminals) {
+        expect(label.y).toBeGreaterThan(terminal.y);
+      }
+    }
   });
 });
