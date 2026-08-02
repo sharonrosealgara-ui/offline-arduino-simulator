@@ -46,7 +46,7 @@ import {
   terminalScenePosition,
 } from './hardware/component-bounds';
 import { Part3D, terminalsOf } from './hardware/parts-3d';
-import { WIRE_HEX } from './hardware/wire-colors';
+import { WIRE_SELECTED_HEX, wireRenderHex, type WireRenderContext } from './hardware/wire-colors';
 import { buildWireCurve, wireRadius, type WireClearanceContext } from './hardware/wire-path';
 import {
   BOARD_AT_SCENE_ORIGIN,
@@ -63,8 +63,11 @@ const WIRE_LIFT = 0.14;
 /** Radius of the clickable terminal anchor. */
 const TERMINAL_RADIUS = 0.028;
 
-const SELECTED_COLOR = '#38bdf8';
+const SELECTED_COLOR = WIRE_SELECTED_HEX;
 const HOVER_COLOR = '#7dd3fc';
+
+/** The bench is #171a1f whatever the OS theme is, so this canvas is always the dark context. */
+const WORKSPACE_CONTEXT: WireRenderContext = 'dark';
 const WIRE_PENDING_COLOR = '#facc15';
 
 /** Rotates a terminal's local anchor by the component rotation and offsets by position. */
@@ -176,7 +179,7 @@ export function DynamicNetlist3D({ quality = 'high' }: DynamicNetlist3DProps): J
             key={w.id}
             id={w.id}
             points={[a, ...mids, b]}
-            color={selected.has(w.id) ? SELECTED_COLOR : WIRE_HEX[w.colorRole]}
+            role={w.colorRole}
             selected={selected.has(w.id)}
             high={high}
             clearance={unoWireClearance(unoPlacement, exemptions)}
@@ -247,26 +250,36 @@ export function DynamicNetlist3D({ quality = 'high' }: DynamicNetlist3DProps): J
 function NetWire({
   id,
   points,
-  color,
+  role,
   selected,
   high,
   clearance,
 }: {
   id: string;
   points: THREE.Vector3[];
-  color: string;
+  role: WireColorRole;
   selected: boolean;
   high: boolean;
   clearance: WireClearanceContext;
 }): JSX.Element {
   const curve = useMemo(() => buildWireCurve(points, clearance), [points, clearance]);
+  const [hovered, setHovered] = useState(false);
 
   if (!curve) return <group />;
+
+  // One resolver decides this, so pointer-out lands back on exactly the resting colour
+  // rather than on a separately-written copy of it.
+  const color = wireRenderHex(role, WORKSPACE_CONTEXT, { selected, hovered });
 
   return (
     <mesh
       castShadow={high}
       receiveShadow={high}
+      onPointerOver={(event) => {
+        event.stopPropagation();
+        setHovered(true);
+      }}
+      onPointerOut={() => setHovered(false)}
       onClick={(event) => {
         event.stopPropagation();
         useAppStore.getState().actions.selectIds([id]);

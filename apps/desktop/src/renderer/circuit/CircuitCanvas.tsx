@@ -13,6 +13,8 @@ import { useCircuit, useSimulation, useActions } from '../state/store';
 import { getComponentDefinition } from '@offline-arduino/simulator';
 import type { CircuitComponent, CircuitWire } from '@offline-arduino/contracts/circuit';
 import { ComponentGlyph } from './renderers/ComponentGlyph';
+import { wireRenderHex } from '../app/circuit/hardware/wire-colors';
+import { useColorScheme } from '../app/hooks/useColorScheme';
 
 const GRID = 8;
 
@@ -30,6 +32,7 @@ export function CircuitCanvas(): JSX.Element {
   const circuit = useCircuit();
   const simulation = useSimulation();
   const actions = useActions();
+  const scheme = useColorScheme();
 
   const terminalPositions = useMemo(() => {
     const map = new Map<string, { x: number; y: number }>();
@@ -77,7 +80,14 @@ export function CircuitCanvas(): JSX.Element {
         {circuit.wires.map((wire) => (
           <g key={wire.id}>
             <path d={wirePath(wire)} fill="none" stroke="transparent" strokeWidth={12} style={{ cursor: 'pointer' }} />
-            <path d={wirePath(wire)} fill="none" stroke={wireStroke(wire.colorRole)} strokeWidth={2.5} strokeLinejoin="round" />
+            {/* Resting colour only: this canvas has no wire selection or hover to reflect. */}
+            <path
+              d={wirePath(wire)}
+              fill="none"
+              stroke={wireRenderHex(wire.colorRole, scheme)}
+              strokeWidth={2.5}
+              strokeLinejoin="round"
+            />
           </g>
         ))}
       </g>
@@ -108,23 +118,3 @@ export function CircuitCanvas(): JSX.Element {
   );
 }
 
-function wireStroke(role: CircuitWire['colorRole']): string {
-  switch (role) {
-    case 'vcc-red':
-      return '#d1352b';
-    case 'ground-black':
-      return '#1c1f24';
-    case 'signal-yellow':
-      return '#e0b400';
-    case 'signal-blue':
-      return '#2b74d1';
-    case 'signal-green':
-      return '#1f9d55';
-    case 'signal-orange':
-      return '#e07a1f';
-    case 'signal-purple':
-      return '#8a4fd1';
-    default:
-      return '#888';
-  }
-}
