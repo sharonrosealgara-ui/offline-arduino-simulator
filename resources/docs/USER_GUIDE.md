@@ -37,7 +37,9 @@ Opening an example creates an editable copy, so the originals are never modified
 
 ## 5. The 3D Lab View
 
-The 3D canvas renders your board, breadboard, and components with real-time state: when your sketch drives a pin HIGH, the connected LED glows with physically-inspired emissive lighting. Use the mouse to orbit, zoom, and pan. Enable **Low-spec mode** in the top bar on older hardware to reduce GPU load.
+The 3D canvas renders your board, your components and the wires between them with real-time state: when your sketch drives a pin HIGH, the connected LED glows with physically-inspired emissive lighting. Use the mouse to orbit, zoom, and pan. Enable **Low-spec mode** in the top bar on older hardware to reduce GPU load.
+
+There is no breadboard yet. Components are wired directly to the Uno's headers, pin to pin.
 
 ## 6. Offline & Security Notes
 

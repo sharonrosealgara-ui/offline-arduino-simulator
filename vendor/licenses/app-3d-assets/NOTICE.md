@@ -1,16 +1,24 @@
 # 3D hardware representations — attribution record
 
 **Component.** Every 3D object rendered in the circuit workspace: the Arduino-compatible
-Uno R3 board, the full-size solderless breadboard, and the component library (LED,
-resistor, pushbutton, potentiometer, jumper wire, 16×2 character LCD, servo).
+Uno R3 board and the component library (LED, resistor, pushbutton, potentiometer, jumper
+wire, 16×2 character LCD, servo).
 
 **Origin.** All of it is **original work authored for this project**, defined as procedural
 three.js geometry in TypeScript. Source of record:
 
 - `apps/desktop/src/renderer/app/circuit/hardware/UnoR3Board.tsx`
-- `apps/desktop/src/renderer/app/circuit/hardware/Breadboard.tsx`
-- `apps/desktop/src/renderer/app/circuit/hardware/parts.tsx`
+- `apps/desktop/src/renderer/app/circuit/hardware/parts-3d.tsx`
+- `apps/desktop/src/renderer/app/circuit/hardware/uno-geometry.ts`
+- `apps/desktop/src/renderer/app/circuit/hardware/component-geometry.ts`
 - `apps/desktop/src/renderer/app/circuit/hardware/labels.ts`
+
+**No breadboard is rendered.** Earlier revisions of this record listed a solderless
+breadboard and a `Breadboard.tsx` source file. Neither existed: no breadboard has ever been
+rendered by this application and that file has never been present in the repository. The
+claim is withdrawn. A breadboard is *planned* as procedural geometry — see
+`BREADBOARD_GEOMETRY_SOURCES.md` in this directory for its dimensional provenance — and
+this record will be extended when it actually ships, not before.
 
 **License.** MIT, same as the rest of this repository. See `/LICENSE`.
 
@@ -40,5 +48,8 @@ compiler targets (ATmega328P at 16 MHz).
 ## Dimensional reference
 
 Proportions follow the publicly documented Uno R3 mechanical envelope — 68.6 mm × 53.4 mm
-board outline, 2.54 mm header pitch, standard 830-tie-point breadboard geometry. Dimensions
-and pin numbering are facts about the hardware, not copyrightable expression.
+board outline, 2.54 mm header pitch. Dimensions and pin numbering are facts about the
+hardware, not copyrightable expression.
+
+Dimensional provenance for the planned breadboard is recorded separately in
+`BREADBOARD_GEOMETRY_SOURCES.md`.
