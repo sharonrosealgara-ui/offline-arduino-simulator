@@ -6,11 +6,12 @@
  * a component or rerouting a wire without changing endpoints must NOT change
  * topologyHash (§9.4).
  */
-import type {
-  CircuitComponent,
-  CircuitJunction,
-  CircuitWire,
-  ProjectCircuit,
+import {
+  SUPPORTED_CIRCUIT_SCHEMA_VERSIONS,
+  type CircuitComponent,
+  type CircuitJunction,
+  type CircuitWire,
+  type ProjectCircuit,
 } from '@offline-arduino/contracts/circuit';
 import type {
   BoardPinBinding,
@@ -88,8 +89,14 @@ export function compileNetlist(project: ProjectCircuit): RuntimeNetlist {
   const diagnostics = createDiagnostics();
 
   // ---- Phase A: normalize and validate ---------------------------------------------
-  if (project.schemaVersion !== 1) {
-    diagnostics.add(fatal('SCHEMA_VERSION_UNSUPPORTED', 'Unsupported circuit schema version.'));
+  if (!SUPPORTED_CIRCUIT_SCHEMA_VERSIONS.includes(project.schemaVersion as 1 | 2)) {
+    diagnostics.add(
+      fatal(
+        'SCHEMA_VERSION_UNSUPPORTED',
+        `This circuit was saved by a newer version of the app (format ${String(project.schemaVersion)}). ` +
+          `This version reads formats ${SUPPORTED_CIRCUIT_SCHEMA_VERSIONS.join(' and ')}.`,
+      ),
+    );
     return emptyResult(diagnostics.items);
   }
 

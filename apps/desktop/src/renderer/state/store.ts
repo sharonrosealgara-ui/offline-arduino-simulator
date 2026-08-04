@@ -9,6 +9,7 @@
 import { create } from 'zustand';
 import type { CircuitDiagnostic, ComponentDisplayDelta, NodeDisplayDelta, PinDisplayDelta, PinEdge, PerformanceProfile, SimulationPhase } from '@offline-arduino/contracts/simulator';
 import type { CompilerDiagnostic } from '@offline-arduino/contracts/compiler';
+import { checkTerminalBudget } from '@offline-arduino/simulator';
 import type {
   CircuitComponent,
   CircuitJunction,
@@ -180,7 +181,8 @@ interface StoreActions {
   /** Arms a component kind for placement, or clears it with null. */
   armPlacement(kind: ComponentKind | null): void;
   /** Places the armed (or given) kind at a workspace position. Returns the new id. */
-  addComponent(kind: ComponentKind, x: number, y: number): string;
+  /** Returns the new id, or null when the terminal budget refused the addition. */
+  addComponent(kind: ComponentKind, x: number, y: number): string | null;
   /** Moves a component. Called continuously during a drag — coalesced into one undo step. */
   moveComponent(id: string, x: number, y: number, options?: { coalesce?: boolean }): void;
   /** Rotates a component by a quarter turn. */
@@ -259,6 +261,7 @@ const DEFAULT_PROPERTIES: Record<ComponentKind, Record<string, string | number |
   pushbutton: {},
   potentiometer: { ohms: 10_000, initialPosition: 0.5 },
   lcd1602: {},
+  breadboard: {},
   servo: { minPulseMicros: 1000, maxPulseMicros: 2000, minAngle: 0, maxAngle: 180 },
 };
 
@@ -270,6 +273,7 @@ const KIND_LABELS: Record<ComponentKind, string> = {
   potentiometer: 'Potentiometer',
   lcd1602: 'LCD 16x2',
   servo: 'Servo',
+  breadboard: 'Breadboard',
 };
 
 /** Stable, human-meaningful ids — `led-1`, `led-2` — rather than opaque UUIDs. */
@@ -440,7 +444,18 @@ export const useAppStore = create<RootState>((set) => ({
       })),
 
     addComponent: (kind, x, y) => {
-      const id = nextComponentId(kind, useAppStore.getState().circuit.components);
+      // Checked before anything is created. A breadboard contributes 400 terminals, so a
+      // circuit can go from fine to uncompilable in one drop; finding that out only at
+      // compile time would leave a component on the bench that can never be simulated.
+      const existing = useAppStore.getState().circuit.components;
+      const budget = checkTerminalBudget(existing, kind);
+      if (!budget.withinLimit) {
+        // Refused before anything is created: no component, no id, no history entry. The
+        // reason is available from `checkTerminalBudget` for whatever surfaces it.
+        set((state) => ({ circuit: { ...state.circuit, placementKind: null } }));
+        return null;
+      }
+      const id = nextComponentId(kind, existing);
       set((state) =>
         commitCircuit(state, {
           ...state.circuit,

@@ -7,6 +7,13 @@
  * runtime voltages, frames, compiled HEX, LCD transient state, or terminal output.
  */
 
+/**
+ * Kinds a circuit may contain.
+ *
+ * `breadboard` is persistable only from project schemaVersion 2 onward; the v1 reader in
+ * `project-schema.ts` still rejects it, which is what makes the version bump honest rather
+ * than decorative. See PROJECT_KINDS_V1 / PROJECT_KINDS_V2 below.
+ */
 export type ComponentKind =
   | 'uno-r3'
   | 'led'
@@ -14,7 +21,26 @@ export type ComponentKind =
   | 'pushbutton'
   | 'potentiometer'
   | 'lcd1602'
-  | 'servo';
+  | 'servo'
+  | 'breadboard';
+
+/** Exactly what a schemaVersion 1 project file may contain. Frozen: v1 files never change. */
+export const PROJECT_KINDS_V1 = [
+  'uno-r3',
+  'led',
+  'resistor',
+  'pushbutton',
+  'potentiometer',
+  'lcd1602',
+  'servo',
+] as const;
+
+/** The v1 set plus `breadboard` — the only difference the version bump introduces. */
+export const PROJECT_KINDS_V2 = [...PROJECT_KINDS_V1, 'breadboard'] as const;
+
+/** Project-circuit schema versions this application understands. */
+export const SUPPORTED_CIRCUIT_SCHEMA_VERSIONS = [1, 2] as const;
+export const CURRENT_CIRCUIT_SCHEMA_VERSION = 2;
 
 export interface Point {
   x: number;
@@ -60,7 +86,8 @@ export interface CircuitJunction {
 }
 
 export interface ProjectCircuit {
-  schemaVersion: 1;
+  /** 1 for legacy files; 2 once a breadboard can be present. Both are read. */
+  schemaVersion: 1 | 2;
   components: CircuitComponent[];
   wires: CircuitWire[];
   junctions: CircuitJunction[];

@@ -318,8 +318,12 @@ describe('14-16: determinism and purity', () => {
       .replace(/\/\*[\s\S]*?\*\//g, '')
       .replace(/\/\/.*$/gm, '');
 
-    // The strongest available statement of purity: the module imports nothing at all.
-    expect(code).not.toMatch(/^\s*import\s/m);
+    // The module imports exactly one thing: the shared unit conversion, so the millimetre
+    // and schematic-unit views of a hole cannot drift. Nothing else — no runtime package,
+    // no sibling contract, and certainly nothing from the renderer or the simulator.
+    const imports = code.match(/^\s*import\s[^;]+;/gm) ?? [];
+    expect(imports).toHaveLength(1);
+    expect(imports[0]).toContain("from './units'");
     expect(code).not.toMatch(/\brequire\s*\(/);
     for (const forbidden of ['THREE', 'react', 'document', 'window', 'rotation', 'Vector3', 'canvas']) {
       expect(`${forbidden}:${new RegExp(`\\b${forbidden}\\b`, 'i').test(code)}`).toBe(`${forbidden}:false`);
@@ -339,38 +343,40 @@ describe('14-16: determinism and purity', () => {
 });
 
 describe('17-20: the rest of the application is untouched', () => {
-  it('leaves ComponentKind byte-for-byte unchanged', () => {
+  // C1A required the model to be reachable from nothing at all. C1B deliberately connects it
+  // to the registry and the v2 schema, so those absence assertions are replaced by the ones
+  // that are true now: v1 still refuses a breadboard, and the layers C1B does not touch
+  // still know nothing about one.
+  it('keeps the frozen v1 kind list free of breadboard, and adds it only to v2', () => {
     const circuit = read('packages/contracts/src/circuit.ts');
-    expect(circuit).toContain(
-      "export type ComponentKind =\n  | 'uno-r3'\n  | 'led'\n  | 'resistor'\n  | 'pushbutton'\n  | 'potentiometer'\n  | 'lcd1602'\n  | 'servo';",
-    );
-    expect(circuit).not.toContain('breadboard');
+    expect(circuit).toContain('export const PROJECT_KINDS_V1');
+    expect(circuit).toContain("export const PROJECT_KINDS_V2 = [...PROJECT_KINDS_V1, 'breadboard'] as const;");
+    // The v1 list itself must not gain the kind.
+    const v1Block = circuit.slice(circuit.indexOf('PROJECT_KINDS_V1'), circuit.indexOf('PROJECT_KINDS_V2'));
+    expect(v1Block).not.toContain('breadboard');
   });
 
-  it('leaves the project schema at version 1 with no breadboard kind', () => {
+  it('builds the two schema readers from those two separate lists', () => {
     const schema = read('apps/desktop/src/main/projects/project-schema.ts');
-    expect(schema).toContain(
-      "kind: z.enum(['uno-r3', 'led', 'resistor', 'pushbutton', 'potentiometer', 'lcd1602', 'servo'])",
-    );
+    expect(schema).toContain('z.enum(PROJECT_KINDS_V1)');
+    expect(schema).toContain('z.enum(PROJECT_KINDS_V2)');
     expect(schema).toContain('schemaVersion: z.literal(1)');
-    expect(schema).not.toContain('breadboard');
+    expect(schema).toContain('schemaVersion: z.literal(2)');
   });
 
-  it('is not exported from the contracts barrel, so nothing can reach it by accident', () => {
+  it('is still not exported from the contracts barrel', () => {
     const barrel = read('packages/contracts/src/index.ts');
     expect(barrel).not.toContain('breadboard');
   });
 
-  it('is not imported by the simulator or the desktop application', () => {
+  it('has not reached 3D geometry, scene obstacles or Phase B wire routing', () => {
+    // C3 and C4. A breadboard must not appear in the production 3D scene or the wire router
+    // until its geometry and its attachment portals exist.
     for (const rel of [
-      'packages/simulator/src/circuit-model/component-registry.ts',
-      'packages/simulator/src/netlist-compiler.ts',
-      'apps/desktop/src/renderer/app/circuit/component-catalog.tsx',
-      'apps/desktop/src/renderer/circuit/CircuitCanvas.tsx',
       'apps/desktop/src/renderer/app/circuit/DynamicNetlist3D.tsx',
       'apps/desktop/src/renderer/app/circuit/hardware/scene-obstacles.ts',
       'apps/desktop/src/renderer/app/circuit/hardware/wire-path.ts',
-      'apps/desktop/src/renderer/state/store.ts',
+      'apps/desktop/src/renderer/app/circuit/hardware/parts-3d.tsx',
     ]) {
       expect(`${rel}:${read(rel).includes('breadboard')}`).toBe(`${rel}:false`);
     }

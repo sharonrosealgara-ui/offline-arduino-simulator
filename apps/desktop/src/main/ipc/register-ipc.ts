@@ -8,7 +8,12 @@ import { CompilerService } from '../compiler/compiler-service';
 import { validateSender } from './validate-sender';
 import { IPC_CHANNELS } from './channels';
 import { saveProject, saveProjectAs, openProjectDialog, listExamples, openExampleCopy } from '../projects/project-service';
-import { saveProjectRequestSchema } from '../projects/project-schema';
+import { migrateProjectV1ToV2, saveProjectRequestSchema, type ProjectFileV1, type ProjectFileV2 } from '../projects/project-schema';
+
+/** Raises a boundary-accepted project to the version the writer requires. */
+function toCurrentProjectVersion(project: ProjectFileV1 | ProjectFileV2): ProjectFileV2 {
+  return project.schemaVersion === 1 ? migrateProjectV1ToV2(project) : project;
+}
 import { getInstallGuideContent, getUserGuideContent } from '../help/install-guide';
 
 const service = new CompilerService();
@@ -59,13 +64,14 @@ export function registerIpc(): void {
   ipcMain.handle(IPC_CHANNELS.projectSave, async (event, request: unknown) => {
     requireValidSender(event);
     const parsed = saveProjectRequestSchema.parse(request);
-    return await saveProject(parsed.project, parsed.sourcePath);
+    // The boundary accepts either version; the writer only emits the current one.
+    return await saveProject(toCurrentProjectVersion(parsed.project), parsed.sourcePath);
   });
 
   ipcMain.handle(IPC_CHANNELS.projectSaveAs, async (event, request: unknown) => {
     requireValidSender(event);
     const parsed = saveProjectRequestSchema.parse(request);
-    return await saveProjectAs(parsed.project, parsed.sourcePath);
+    return await saveProjectAs(toCurrentProjectVersion(parsed.project), parsed.sourcePath);
   });
 
   ipcMain.handle(IPC_CHANNELS.projectOpen, async (event) => {

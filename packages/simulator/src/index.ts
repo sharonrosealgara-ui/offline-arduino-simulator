@@ -13,6 +13,7 @@ export * from './electrical-solver';
 export * from './circuit-runtime';
 export * from './board/uno';
 export * from './circuit-model/component-registry';
+export * from './circuit-model/terminal-budget';
 export * from './components/led-runtime';
 export * from './components/pushbutton-runtime';
 export * from './components/potentiometer-runtime';

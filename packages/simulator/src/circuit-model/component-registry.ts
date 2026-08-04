@@ -8,6 +8,10 @@
  */
 import type { CircuitComponent, ComponentKind } from '@offline-arduino/contracts/circuit';
 import type { RuntimeElement } from '@offline-arduino/contracts/simulator';
+import {
+  breadboardGroupMemberships,
+  breadboardTerminalAnchors,
+} from '@offline-arduino/contracts/breadboard';
 import { UNO_PIN_MAP, UNO_RAIL_5V, UNO_RAIL_3V3, UNO_RAIL_GND } from '../board/uno';
 
 export function terminalKey(componentId: string, terminalId: string): string {
@@ -187,6 +191,32 @@ const REGISTRY: Record<ComponentKind, ComponentDefinition> = {
       minAngle: numberProp(component, 'minAngle', 0),
       maxAngle: numberProp(component, 'maxAngle', 180),
     }),
+  },
+  /**
+   * A generic 400 tie-point breadboard.
+   *
+   * Every terminal and every group is READ from the canonical model in
+   * `@offline-arduino/contracts/breadboard`. Nothing here restates a coordinate, a hole id
+   * or a rail membership — a second copy of a 400-entry table is a second copy that can
+   * drift, and the drift would be invisible until a student's circuit behaved differently
+   * from the board they can see.
+   *
+   * `stamp` returns null: a breadboard adds no element to the solver. It is pure
+   * connectivity, and the connectivity is entirely expressed by the permanently-common
+   * groups the compiler already unions. Every group is kept even when nothing is plugged
+   * into it, because pruning would change the topology hash for a cosmetic saving.
+   */
+  breadboard: {
+    kind: 'breadboard',
+    terminals: breadboardTerminalAnchors().map((anchor) => ({
+      id: anchor.id,
+      label: anchor.id,
+      x: anchor.x,
+      y: anchor.y,
+      role: 'passive' as const,
+    })),
+    permanentlyCommonTerminals: breadboardGroupMemberships(),
+    stamp: () => null,
   },
 };
 

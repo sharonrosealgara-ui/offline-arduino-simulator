@@ -22,14 +22,15 @@
  * different numbers silently misplaces every part a student drops.
  */
 
-/** Inches per schematic unit. */
-export const SCHEMATIC_UNIT_INCHES = 0.01;
-
-/** Millimetres per inch. */
-export const MM_PER_INCH = 25.4;
-
-/** Millimetres per schematic unit — 0.254 mm exactly. */
-export const MM_PER_SCHEMATIC_UNIT = SCHEMATIC_UNIT_INCHES * MM_PER_INCH;
+/**
+ * The three constants now live in `@offline-arduino/contracts/units` and are re-exported
+ * here unchanged. The simulator's component registry needs the same millimetre-to-schematic
+ * conversion to place the breadboard's 400 anchors, and it cannot import from this app —
+ * so the values moved to the package both sides can reach rather than being written twice.
+ * Every export of this module keeps its previous name and value.
+ */
+export { SCHEMATIC_UNIT_INCHES, MM_PER_INCH, MM_PER_SCHEMATIC_UNIT } from '@offline-arduino/contracts/units';
+import { MM_PER_SCHEMATIC_UNIT, SCHEMATIC_UNIT_INCHES, MM_PER_INCH } from '@offline-arduino/contracts/units';
 
 /** 2.54 mm — the pitch the board, the headers and every lead in the library share. */
 export const HEADER_PITCH_MM = 2.54;

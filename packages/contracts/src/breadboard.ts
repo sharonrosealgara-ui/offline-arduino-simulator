@@ -21,6 +21,9 @@
  * scene positions — only the board's own local frame. Where a board sits in a workspace and
  * how it is rotated are the caller's business, exactly as they are for every other part.
  *
+ * The one import is the shared unit conversion, so that millimetre and schematic-unit views
+ * of the same hole cannot drift apart.
+ *
  * PROVENANCE
  * ----------
  * Dimensions and topology come from the BusBoard Prototype Systems BB400 datasheet (Rev 6)
@@ -33,6 +36,8 @@
  * load-bearing: an approximation presented as a manufacturer measurement is how a drawing
  * ends up asserting something the datasheet never said.
  */
+
+import { mmToSchematicUnits } from './units';
 
 /** How a dimension came to be, so nothing has to guess later. */
 export type DimensionProvenance =
@@ -290,6 +295,22 @@ export function createBreadboardModel(): BreadboardModel {
 /** Every hole id, in generation order. */
 export function breadboardHoleIds(): string[] {
   return createBreadboardModel().holes.map((h) => h.id);
+}
+
+/**
+ * The same holes, expressed in the schematic units terminal anchors use.
+ *
+ * A conversion, not a second coordinate table: every value is computed from the millimetre
+ * model above, so there is still exactly one place a hole's position is decided. The
+ * component registry needs anchors in schematic units and the renderer needs millimetres;
+ * both read the same generator.
+ */
+export function breadboardTerminalAnchors(): { id: string; x: number; y: number }[] {
+  return createBreadboardModel().holes.map((hole) => ({
+    id: hole.id,
+    x: mmToSchematicUnits(hole.x),
+    y: mmToSchematicUnits(hole.y),
+  }));
 }
 
 /** Group memberships as plain id arrays — the shape a registry's permanently-common list wants. */
