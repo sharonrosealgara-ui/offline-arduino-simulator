@@ -13,6 +13,7 @@ import { useCircuit, useSimulation, useActions } from '../state/store';
 import { getComponentDefinition } from '@offline-arduino/simulator';
 import type { CircuitComponent, CircuitWire } from '@offline-arduino/contracts/circuit';
 import { ComponentGlyph } from './renderers/ComponentGlyph';
+import { BreadboardGlyph } from './renderers/BreadboardGlyph';
 import { wireRenderHex } from '../app/circuit/hardware/wire-colors';
 import { useColorScheme } from '../app/hooks/useColorScheme';
 
@@ -101,7 +102,22 @@ export function CircuitCanvas(): JSX.Element {
 
       {/* componentLayer + labelLayer + selectionLayer */}
       <g className="componentLayer">
-        {circuit.components.map((component) => (
+        {circuit.components.map((component) =>
+          component.kind === 'breadboard' ? (
+            // Drawn by its own renderer: 400 holes need one composite surface rather than
+            // the per-terminal treatment every other part gets. Not reachable through normal
+            // authoring yet — there is no catalog entry and the load guard still refuses a
+            // project containing one (C2B).
+            <BreadboardGlyph
+              key={component.id}
+              component={component}
+              selected={circuit.selectedIds.includes(component.id)}
+              wires={circuit.wires}
+              onSelect={(additive) =>
+                actions.selectIds(additive ? [...circuit.selectedIds, component.id] : [component.id])
+              }
+            />
+          ) : (
           <ComponentGlyph
             key={component.id}
             component={component}
@@ -112,7 +128,8 @@ export function CircuitCanvas(): JSX.Element {
               actions.selectIds(additive ? [...circuit.selectedIds, component.id] : [component.id])
             }
           />
-        ))}
+          ),
+        )}
       </g>
     </svg>
   );
