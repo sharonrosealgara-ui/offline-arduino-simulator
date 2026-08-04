@@ -14,9 +14,10 @@
  * file is presentation and event plumbing, so the parts worth testing can be tested without
  * a DOM.
  *
- * C2A SCOPE. Selecting a hole reports it through `onHoleActivate` and nothing else. It is
- * not wired to the wire workflow, the breadboard is not in the catalog, and the project load
- * guard still refuses to open a file containing one. C2B connects it.
+ * Selecting a hole goes through the application's own wire workflow, so a breadboard hole is
+ * an ordinary wire endpoint and not a special case. One-conductor-per-hole is enforced in the
+ * store, before any mutation — a rule only the drawing knew about would be a rule a keyboard
+ * user could walk straight past.
  *
  * VISUAL APPROXIMATIONS — none of these are manufacturer measurements. The datasheets give
  * the pitch, the hole style, the material, the tie-point counts and the body envelope, and
@@ -36,6 +37,7 @@ import {
   resolveHoleAt,
   type BreadboardArrow,
 } from '../../app/circuit/breadboard-geometry';
+import { lastWirePickResult, useAppStore } from '../../state/store';
 import {
   holeAnnouncement,
   holesInSameGroup,
@@ -48,7 +50,12 @@ interface Props {
   selected: boolean;
   /** Wires in the project — the only source occupancy is derived from. */
   wires: readonly CircuitWire[];
-  /** Reports the hole a pointer or Enter chose. C2A observes; C2B will wire it up. */
+  /**
+   * Reports the hole a pointer or Enter chose.
+   *
+   * Defaults to the application's own wire workflow. Overridable so a test can observe the
+   * resolved id without a store, not so a second wiring path can exist.
+   */
   onHoleActivate?(holeId: string): void;
   onSelect?(additive: boolean): void;
 }
@@ -92,6 +99,46 @@ function BreadboardGlyphImpl({ component, selected, wires, onHoleActivate, onSel
     [wires, component.id],
   );
 
+  /**
+   * Selects a hole through the application's existing wire workflow.
+   *
+   * The store enforces one-conductor-per-hole and refuses before mutating, so a refusal here
+   * has already left the project — and any wire in progress — untouched. All this does is
+   * say so, in the live region and in the Problems panel where circuit problems already
+   * appear.
+   */
+  const activate = useCallback(
+    (holeId: string) => {
+      const ref = { componentId: component.id, terminalId: holeId };
+      if (onHoleActivate) {
+        onHoleActivate(holeId);
+        return;
+      }
+      const actions = useAppStore.getState().actions;
+      actions.pickTerminal(ref);
+      const result = lastWirePickResult();
+      if (result.ok) {
+        announce(holeId);
+        return;
+      }
+      const alternatives = result.alternatives ?? [];
+      const suggestion =
+        alternatives.length > 0
+          ? ` ${alternatives.join(', ')} ${alternatives.length === 1 ? 'is' : 'are'} free and joined to the same points.`
+          : ' Every hole joined to it is full.';
+      setAnnouncement(`${result.reason}${suggestion}`);
+      actions.setCircuitDiagnostics([
+        {
+          id: `BREADBOARD_HOLE_OCCUPIED:${component.id}:${holeId}`,
+          code: 'BREADBOARD_HOLE_OCCUPIED',
+          severity: 'error',
+          message: `${result.reason}${suggestion}`,
+        },
+      ]);
+    },
+    [component.id, onHoleActivate, announce],
+  );
+
   useEffect(() => {
     if (!navigating) setAnnouncement('');
   }, [navigating]);
@@ -109,19 +156,18 @@ function BreadboardGlyphImpl({ component, selected, wires, onHoleActivate, onSel
     return { x: local.x, y: local.y };
   };
 
-  const handlePointer = (event: React.MouseEvent, activate: boolean): void => {
+  const handlePointer = (event: React.MouseEvent, isActivation: boolean): void => {
     const canvas = pointerToCanvas(event);
     if (!canvas) return;
     const holeId = resolveHoleAt(canvas, component);
-    if (activate) {
+    if (isActivation) {
       event.stopPropagation();
       onSelect?.(event.shiftKey);
       // A miss is a miss. Snapping to whatever was nearest would attach a wire to a hole
       // the student never aimed at, with no way to say "I missed".
       if (holeId) {
         setCursor(holeId);
-        announce(holeId);
-        onHoleActivate?.(holeId);
+        activate(holeId);
       }
     } else {
       setHovered(holeId);
@@ -156,14 +202,21 @@ function BreadboardGlyphImpl({ component, selected, wires, onHoleActivate, onSel
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
       event.stopPropagation();
-      announce(cursor);
-      onHoleActivate?.(cursor);
+      activate(cursor);
       return;
     }
 
     if (event.key === 'Escape') {
       event.preventDefault();
       event.stopPropagation();
+      // A half-drawn wire is the more urgent thing to undo, so Escape clears that first and
+      // only leaves hole navigation on a second press. Otherwise escaping the board would
+      // strand a wire the student can no longer see the start of.
+      if (useAppStore.getState().circuit.pendingWireFrom) {
+        useAppStore.getState().actions.cancelWire();
+        setAnnouncement('Wire cancelled.');
+        return;
+      }
       setNavigating(false);
     }
   };
@@ -331,6 +384,8 @@ function BreadboardGlyphImpl({ component, selected, wires, onHoleActivate, onSel
         onMouseMove={(event) => handlePointer(event, false)}
         onMouseLeave={() => setHovered(null)}
         onKeyDown={handleKeyDown}
+        // Leaves navigation only. Any wire in progress is left exactly as it is —
+        // silently completing or dropping one on blur would lose the student's intent.
         onBlur={() => setNavigating(false)}
       />
 

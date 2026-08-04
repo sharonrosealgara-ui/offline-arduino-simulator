@@ -5,7 +5,7 @@
 import type { ProjectFileDTO } from '../../preload/electron-api-types';
 import { CURRENT_CIRCUIT_SCHEMA_VERSION, type ProjectCircuit } from '@offline-arduino/contracts/circuit';
 import { useAppStore } from '../state/store';
-import { canLoadProject, type ProjectLoadVerdict } from './project-load-guard';
+import { breadboardCount, canLoadProject, type ProjectLoadVerdict } from './project-load-guard';
 
 const MAIN_SOURCE = 'Sketch.ino';
 
@@ -22,11 +22,15 @@ const MAIN_SOURCE = 'Sketch.ino';
 export function loadProjectIntoStore(
   project: ProjectFileDTO,
   sourcePath: string | null = null,
-): ProjectLoadVerdict {
+): ProjectLoadVerdict & { switchedTo2D?: boolean } {
   // Checked before the first setState, so a refused project leaves the workspace exactly as
   // it was — no components, no sketch, no half-replaced document.
   const verdict = canLoadProject(project);
   if (!verdict.ok) return verdict;
+
+  // A breadboard has no 3D geometry yet, so a project containing one goes into 2D. Decided
+  // here, before the project is applied, so it is never transiently rendered in 3D.
+  const breadboards = breadboardCount(project);
 
   const sketch = project.sources[MAIN_SOURCE] ?? Object.values(project.sources)[0] ?? '';
   const circuit = (project.circuit as ProjectCircuit) ?? { schemaVersion: CURRENT_CIRCUIT_SCHEMA_VERSION, components: [], wires: [], junctions: [] };
@@ -52,9 +56,10 @@ export function loadProjectIntoStore(
     // Opening a project starts a fresh document; undo must not step back into the
     // previous project's topology.
     history: { past: [], future: [] },
+    layout: breadboards > 0 ? { ...state.layout, viewportMode: '2d' as const } : state.layout,
   }));
 
-  return { ok: true };
+  return { ok: true, switchedTo2D: breadboards > 0 };
 }
 
 export function snapshotProject(): ProjectFileDTO {

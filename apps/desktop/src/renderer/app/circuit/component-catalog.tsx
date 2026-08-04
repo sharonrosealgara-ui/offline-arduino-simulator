@@ -193,6 +193,22 @@ const ServoThumb = (() => {
 })();
 
 // ---------------------------------------------------------------------------------------
+
+/** A breadboard in miniature: two banks, the centre channel, and a rail line each side. */
+const BreadboardThumb = (
+  <svg viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="Breadboard">
+    <rect x="2" y="7" width="28" height="18" rx="2" fill="#eef0ec" stroke="#495057" strokeWidth="1" />
+    <line x1="3.5" y1="9.5" x2="28.5" y2="9.5" stroke="#d1352b" strokeWidth="0.8" />
+    <line x1="3.5" y1="22.5" x2="28.5" y2="22.5" stroke="#2b74d1" strokeWidth="0.8" />
+    <rect x="4" y="15" width="24" height="2" fill="#c9ced6" />
+    {[12, 13.6, 18.4, 20].map((y) =>
+      [6, 9, 12, 15, 18, 21, 24, 27].map((x) => (
+        <rect key={`${x}-${y}`} x={x - 0.5} y={y - 0.5} width="1" height="1" fill="#495057" />
+      )),
+    )}
+  </svg>
+);
+
 // Catalog
 // ---------------------------------------------------------------------------------------
 export const COMPONENT_CATALOG: readonly CatalogEntry[] = [
@@ -312,6 +328,17 @@ export const COMPONENT_CATALOG: readonly CatalogEntry[] = [
     ],
     rotatable: true,
     thumbnail: ServoThumb,
+  },
+  {
+    kind: 'breadboard',
+    name: '400-Tie-Point Breadboard',
+    summary: 'Solderless breadboard. Each five-hole strip is joined inside; the four rails are separate.',
+    guidance:
+      'Each column of five holes on one side of the centre channel is joined internally — nothing crosses the channel, so the two halves are separate. The four rails along the edges are four separate runs. One hole takes one wire; if a hole is full the board suggests free holes joined to the same points. Jumper wires only for now: plugging component legs straight into holes comes later, and 3D breadboard support arrives in the next milestone.',
+    terminals: [],
+    properties: [],
+    rotatable: true,
+    thumbnail: BreadboardThumb,
   },
 ];
 

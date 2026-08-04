@@ -27,7 +27,8 @@ const KINDS = physicalKinds();
 
 describe('every catalog part has an icon', () => {
   it('covers the whole catalog', () => {
-    expect(COMPONENT_CATALOG.length).toBe(6);
+    // Seven since C2B added the 400-tie-point breadboard.
+    expect(COMPONENT_CATALOG.length).toBe(7);
     for (const entry of COMPONENT_CATALOG) {
       expect(entry.thumbnail, `${entry.kind} has no thumbnail`).toBeTruthy();
     }

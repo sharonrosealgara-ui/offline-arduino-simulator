@@ -23,9 +23,17 @@ interface Props {
   onModeChange(mode: ViewportMode): void;
   lowSpec: boolean;
   onLowSpecChange(lowSpec: boolean): void;
+  /** Why 3D cannot be chosen right now, or null when it can. Shown, not hidden in a title. */
+  threeDisabledReason?: string | null;
 }
 
-export function ViewportToggle({ mode, onModeChange, lowSpec, onLowSpecChange }: Props): JSX.Element {
+export function ViewportToggle({
+  mode,
+  onModeChange,
+  lowSpec,
+  onLowSpecChange,
+  threeDisabledReason = null,
+}: Props): JSX.Element {
   return (
     <div
       style={{
@@ -65,8 +73,20 @@ export function ViewportToggle({ mode, onModeChange, lowSpec, onLowSpecChange }:
           onClick={() => onModeChange('3d')}
           label="3D Workspace"
           icon={<Box size={13} />}
+          disabled={Boolean(threeDisabledReason)}
         />
       </div>
+
+      {/* Visible, not a tooltip: a disabled control with no stated reason reads as a bug. */}
+      {threeDisabledReason && (
+        <p
+          role="status"
+          data-testid="viewport-3d-disabled-reason"
+          style={{ margin: 0, maxWidth: 260, fontSize: 12, lineHeight: 1.35, color: 'var(--text-secondary, #a1a1aa)' }}
+        >
+          {threeDisabledReason}
+        </p>
+      )}
 
       <label
         title="Low-Spec Mode: reduces resolution, disables shadows and antialiasing"
@@ -90,16 +110,20 @@ function SegmentButton({
   onClick,
   label,
   icon,
+  disabled = false,
 }: {
   active: boolean;
   onClick(): void;
   label: string;
   icon: JSX.Element;
+  disabled?: boolean;
 }): JSX.Element {
   return (
     <button
       role="tab"
       aria-selected={active}
+      aria-disabled={disabled}
+      disabled={disabled}
       onClick={onClick}
       style={{
         display: 'flex',
@@ -109,7 +133,8 @@ function SegmentButton({
         fontSize: 12,
         fontWeight: active ? 600 : 400,
         border: 'none',
-        cursor: 'pointer',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.5 : 1,
         color: active ? '#fff' : 'var(--text-secondary, #a1a1aa)',
         background: active ? 'var(--accent, #2563eb)' : 'transparent',
         transition: 'background 120ms ease, color 120ms ease',

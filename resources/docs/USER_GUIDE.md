@@ -39,7 +39,41 @@ Opening an example creates an editable copy, so the originals are never modified
 
 The 3D canvas renders your board, your components and the wires between them with real-time state: when your sketch drives a pin HIGH, the connected LED glows with physically-inspired emissive lighting. Use the mouse to orbit, zoom, and pan. Enable **Low-spec mode** in the top bar on older hardware to reduce GPU load.
 
-There is no breadboard yet. Components are wired directly to the Uno's headers, pin to pin.
+The 3D Workspace does not show breadboards yet. While your circuit contains one, the 3D
+button is unavailable and the reason is shown beside it; everything works normally in 2D.
+Remove the breadboard and 3D becomes available again.
+
+## 5a. The Breadboard (2D)
+
+Switch to **2D Schematic** and drag the **400-Tie-Point Breadboard** from the component
+library. Breadboards can only be added in 2D for now.
+
+**What is joined to what.** Each column of five holes on one side of the centre channel is
+joined inside the board. Nothing crosses the channel, so the five holes above it and the five
+below it are two separate connections. The four rails along the long edges are four separate
+runs — the top positive rail is not joined to the bottom positive rail.
+
+**Choosing a hole with the mouse.** Click a hole to start a wire, then click another hole or
+a pin to finish it. Clicking between holes does nothing on purpose: the board never guesses
+which hole you meant.
+
+**Choosing a hole with the keyboard.** Tab to the breadboard — it is a single stop, not four
+hundred — then press **Enter** or **Space** to start choosing a hole. The arrow keys move
+between holes, **Enter** selects the one you are on, and **Escape** cancels a wire you are
+drawing or leaves hole-choosing mode if there is no wire in progress. Tab always takes you
+out. Each hole is announced with its name, what it is joined to, and whether it is free.
+
+**What the marks mean.** The hole you are on has a square outline. Holes joined to it are
+ringed. Holes that already have a wire are crossed out. Each cue is a different shape, so
+they can be told apart without relying on colour.
+
+**One wire per hole.** A real hole holds one wire, and so does this one. If you pick a hole
+that is already used, nothing changes and the board tells you which nearby holes are free and
+joined to the same points, so you can use one of those instead.
+
+**What is not supported yet.** Only jumper wires connect to breadboard holes. Pushing an LED,
+resistor, button or potentiometer leg directly into a hole is planned for a later update, as
+is showing the breadboard in the 3D Workspace.
 
 ## 6. Offline & Security Notes
 

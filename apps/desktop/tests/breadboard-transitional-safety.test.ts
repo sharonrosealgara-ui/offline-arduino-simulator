@@ -1,15 +1,15 @@
 // @vitest-environment jsdom
 /**
- * A breadboard cannot get into the workspace yet, and cannot get in by the back door either.
+ * What the breadboard is still not allowed to touch.
  *
- * The schema deliberately accepts one — the format is frozen and correct. What does not
- * exist is any way to SEE a breadboard: C2 has not built the 2D rendering or interaction and
- * C3 has not built the 3D geometry. So a loaded breadboard would be an invisible component
- * that changes a circuit's electrical behaviour, which is worse than a refusal.
+ * C1B refused every breadboard project because nothing could draw one. C2B can draw and wire
+ * one in 2D, so those refusals are gone and the assertions here have moved with them: a
+ * breadboard project now LOADS, and the boundary that remains is the 3D one. C3 has no
+ * geometry and C4 has no attachment portals, so no breadboard terminal may reach the 3D
+ * renderer, the scene obstacles or the Phase B wire router.
  *
- * "It is not in the catalog" is not a proof, which is why these tests go at the load
- * boundary as well: a hand-written or imported v2 file is a real route into application
- * state and has to be refused there, before anything is replaced.
+ * The validation that was never about breadboards — the terminal budget — still applies and
+ * is still tested here.
  */
 import { beforeEach, describe, expect, it } from 'vitest';
 import { COMPONENT_CATALOG, catalogEntry } from '../src/renderer/app/circuit/component-catalog';
@@ -46,69 +46,38 @@ function seedWorkspace(): void {
 
 beforeEach(seedWorkspace);
 
-describe('the breadboard is not offered to students yet', () => {
-  it('is absent from the component catalog', () => {
-    expect(COMPONENT_CATALOG.some((e) => e.kind === 'breadboard')).toBe(false);
-    expect(catalogEntry('breadboard')).toBeUndefined();
+describe('the breadboard is offered, and the budget still applies', () => {
+  it('is present in the component catalog exactly once', () => {
+    expect(COMPONENT_CATALOG.filter((e) => e.kind === 'breadboard')).toHaveLength(1);
+    expect(catalogEntry('breadboard')).toBeDefined();
   });
 
   it('leaves every other placeable catalog entry in place', () => {
-    // The Uno is not in the library — it is always present rather than placed — so it is
-    // deliberately absent from this list.
+    // The Uno is not in the library — it is always present rather than placed.
     for (const kind of ['led', 'resistor', 'pushbutton', 'potentiometer', 'lcd1602', 'servo'] as const) {
       expect(`${kind}:${Boolean(catalogEntry(kind))}`).toBe(`${kind}:true`);
     }
   });
-
-  it('cannot be armed for placement through the normal authoring path', () => {
-    // The library UI can only arm a kind it can render from the catalog, and there is no
-    // entry to click. This asserts the gap the UI depends on.
-    const kinds = COMPONENT_CATALOG.map((e) => e.kind);
-    expect(kinds).not.toContain('breadboard');
-  });
 });
 
-describe('importing a project containing a breadboard', () => {
-  it('is refused, with a reason that says when it will work', () => {
-    const verdict = canLoadProject(project([SENTINEL, breadboard]));
-    expect(verdict.ok).toBe(false);
-    if (verdict.ok) return;
-    expect(verdict.reason).toMatch(/breadboard/i);
-    expect(verdict.reason).toMatch(/next update|cannot display/i);
-    expect(verdict.reason).toMatch(/not been changed/i);
-  });
-
-  it('counts them, so the message is true for more than one', () => {
-    const verdict = canLoadProject(project([SENTINEL, breadboard, { ...breadboard, id: 'bb2' }]));
-    expect(verdict.ok).toBe(false);
-    if (verdict.ok) return;
-    expect(verdict.reason).toContain('2 breadboards');
-  });
-
-  it('leaves the workspace completely untouched', () => {
-    const before = JSON.stringify(useAppStore.getState().circuit);
-    const beforeProject = JSON.stringify(useAppStore.getState().project);
-
+describe('a breadboard project loads now', () => {
+  it('is accepted rather than refused', () => {
+    expect(canLoadProject(project([SENTINEL, breadboard])).ok).toBe(true);
     const result = loadProjectIntoStore(project([SENTINEL, breadboard]));
+    expect(result.ok).toBe(true);
+    expect(useAppStore.getState().circuit.components.some((c) => c.kind === 'breadboard')).toBe(true);
+  });
 
-    expect(result.ok).toBe(false);
+  it('is still refused when it would exceed the terminal budget, changing nothing', () => {
+    const over = [SENTINEL, breadboard, { ...breadboard, id: 'bb2' }, { ...breadboard, id: 'bb3' }, { ...breadboard, id: 'bb4' }];
+    const verdict = canLoadProject(project(over));
+    expect(verdict.ok).toBe(false);
+    if (verdict.ok) return;
+    expect(verdict.reason).toContain('1500');
+
+    const before = JSON.stringify(useAppStore.getState().circuit);
+    expect(loadProjectIntoStore(project(over)).ok).toBe(false);
     expect(JSON.stringify(useAppStore.getState().circuit)).toBe(before);
-    expect(JSON.stringify(useAppStore.getState().project)).toBe(beforeProject);
-  });
-
-  it('leaves no partial component behind', () => {
-    loadProjectIntoStore(project([SENTINEL, breadboard, led]));
-    const components = useAppStore.getState().circuit.components;
-    expect(components).toHaveLength(1);
-    expect(components[0].id).toBe('uno1');
-    expect(components.some((c) => c.kind === 'breadboard')).toBe(false);
-    expect(components.some((c) => c.id === 'led1')).toBe(false);
-  });
-
-  it('is refused whether the breadboard is first, last or alone', () => {
-    for (const components of [[breadboard], [breadboard, SENTINEL], [SENTINEL, led, breadboard]]) {
-      expect(canLoadProject(project(components)).ok).toBe(false);
-    }
   });
 });
 

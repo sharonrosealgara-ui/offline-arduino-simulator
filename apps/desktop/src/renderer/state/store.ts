@@ -10,6 +10,10 @@ import { create } from 'zustand';
 import type { CircuitDiagnostic, ComponentDisplayDelta, NodeDisplayDelta, PinDisplayDelta, PinEdge, PerformanceProfile, SimulationPhase } from '@offline-arduino/contracts/simulator';
 import type { CompilerDiagnostic } from '@offline-arduino/contracts/compiler';
 import { checkTerminalBudget } from '@offline-arduino/simulator';
+import {
+  freeHolesInSameGroup,
+  isHoleOccupied,
+} from '../app/circuit/breadboard-connections';
 import type {
   CircuitComponent,
   CircuitJunction,
@@ -123,6 +127,14 @@ export interface SerialState {
 // Layout slice
 // ---------------------------------------------------------------------------------------
 export interface LayoutState {
+  /**
+   * Which canvas is showing.
+   *
+   * Lifted out of CircuitPane because two things outside that component now depend on it:
+   * placing a breadboard is refused while 3D is active, and loading a breadboard project
+   * has to put the workspace back into 2D before the project is applied.
+   */
+  viewportMode: '2d' | '3d';
   editorWidthPercent: number;
   bottomHeightPx: number;
   selectedBottomTab: 'serial' | 'problems' | 'runtime' | 'logic';
@@ -239,6 +251,28 @@ const MAX_SERIAL_RECORDS = 20_000;
 const MAX_LOGIC_EDGES_PER_PIN = 100_000;
 /** Undo depth. Snapshots are small (plain JSON), so this costs very little. */
 const MAX_HISTORY = 100;
+
+/** Why the last `pickTerminal` was refused, for the caller that asked. */
+export interface WirePickResult {
+  ok: boolean;
+  holeId?: string;
+  reason?: string;
+  alternatives?: string[];
+}
+
+/**
+ * The outcome of the most recent pick.
+ *
+ * A module-scoped value rather than a store field on purpose: it is the return value of one
+ * call, read immediately by the caller that made it, not application state anything renders
+ * from. Putting it in the store would be exactly the dormant notification state C1B removed.
+ */
+let lastPickRefusal: WirePickResult = { ok: true };
+
+/** The result of the pick that just happened. */
+export function lastWirePickResult(): WirePickResult {
+  return lastPickRefusal;
+}
 
 /** Authoring grid, in the 2D schematic units the circuit model persists. */
 const AUTHORING_GRID = 5;
@@ -382,6 +416,7 @@ export const useAppStore = create<RootState>((set) => ({
     capturing: true,
   },
   layout: {
+    viewportMode: '3d',
     // Matches the workbench's --editor-width default and the splitter's restore value.
     editorWidthPercent: 42,
     bottomHeightPx: 240,
@@ -447,7 +482,14 @@ export const useAppStore = create<RootState>((set) => ({
       // Checked before anything is created. A breadboard contributes 400 terminals, so a
       // circuit can go from fine to uncompilable in one drop; finding that out only at
       // compile time would leave a component on the bench that can never be simulated.
-      const existing = useAppStore.getState().circuit.components;
+      const state0 = useAppStore.getState();
+      // C3 has no breadboard geometry and C4 has no attachment portals, so a breadboard
+      // dropped while the 3D view is showing would be invisible and unreachable. Refused
+      // before anything is created rather than rendered as nothing.
+      if (kind === 'breadboard' && state0.layout.viewportMode === '3d') {
+        return null;
+      }
+      const existing = state0.circuit.components;
       const budget = checkTerminalBudget(existing, kind);
       if (!budget.withinLimit) {
         // Refused before anything is created: no component, no id, no history entry. The
@@ -541,7 +583,32 @@ export const useAppStore = create<RootState>((set) => ({
         });
       }),
 
-    pickTerminal: (terminal, colorRole = 'signal-yellow') =>
+    pickTerminal: (terminal, colorRole = 'signal-yellow') => {
+      // Enforced here, at the mutation boundary, rather than in the renderer: a rule that
+      // only the drawing knows about is a rule a keyboard user or a future caller can walk
+      // straight past. Checked BEFORE `set`, so a refusal creates no wire, no id and no
+      // history entry, and leaves any wire already in progress exactly as it was.
+      const before = useAppStore.getState().circuit;
+      const isHole =
+        before.components.find((c) => c.id === terminal.componentId)?.kind === 'breadboard';
+      // Picking the same terminal twice is the existing way to back out of a wire, and it
+      // has to stay that way for holes too. Without this the occupancy guard below would see
+      // the pending hole as taken and answer "that hole is full" to someone trying to
+      // cancel — refusing the one gesture that gets them unstuck.
+      const isCancelGesture =
+        before.pendingWireFrom?.componentId === terminal.componentId &&
+        before.pendingWireFrom?.terminalId === terminal.terminalId;
+      if (isHole && !isCancelGesture && isHoleOccupied(before.wires, terminal, before.pendingWireFrom)) {
+        lastPickRefusal = {
+          ok: false,
+          holeId: terminal.terminalId,
+          reason: `Hole ${terminal.terminalId} already has a wire in it. One hole holds one wire.`,
+          alternatives: freeHolesInSameGroup(before.wires, terminal, before.pendingWireFrom),
+        };
+        return;
+      }
+      lastPickRefusal = { ok: true };
+
       set((state) => {
         const pending = state.circuit.pendingWireFrom;
 
@@ -577,7 +644,8 @@ export const useAppStore = create<RootState>((set) => ({
           pendingWireFrom: null,
           selectedIds: [wire.id],
         });
-      }),
+      });
+    },
 
     cancelWire: () => set((state) => ({ circuit: { ...state.circuit, pendingWireFrom: null } })),
 

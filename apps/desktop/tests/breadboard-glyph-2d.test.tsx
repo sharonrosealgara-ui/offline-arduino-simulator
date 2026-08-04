@@ -347,9 +347,12 @@ describe('22-29: keyboard and announcements', () => {
   });
 });
 
-describe('30-32: the transitional boundaries still hold', () => {
-  it('keeps the breadboard out of the component catalog', () => {
-    expect(COMPONENT_CATALOG.some((e) => e.kind === 'breadboard')).toBe(false);
+describe('30-32: canvas integration', () => {
+  // C2A asserted the breadboard was absent from the catalog, because nothing could wire it
+  // up. C2B adds it deliberately, so that assertion is replaced by one that checks the entry
+  // is there and says only true things.
+  it('offers exactly one breadboard catalog entry', () => {
+    expect(COMPONENT_CATALOG.filter((e) => e.kind === 'breadboard')).toHaveLength(1);
   });
 
   it('draws a breadboard supplied directly to CircuitCanvas', () => {

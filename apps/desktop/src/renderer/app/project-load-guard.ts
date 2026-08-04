@@ -1,47 +1,49 @@
 /**
- * The temporary refusal that keeps an unrenderable breadboard out of the workspace.
+ * What has to be true before a project may replace the workspace.
  *
- * The v2 schema and its parser can validate a project containing a breadboard, and they
- * should: the format is frozen and the compiler and registry are already correct about it.
- * What does not exist yet is any way to SEE one. C2 has not built the 2D rendering or the
- * interaction, and C3 has not built the 3D geometry — so a breadboard loaded today would be
- * an invisible component that the student cannot select, cannot wire and cannot delete,
- * whose holes would silently reach a 3D renderer that has no geometry for them.
+ * C1B used this to refuse every project containing a breadboard, because nothing could draw
+ * one. C2B can: the 2D renderer, the wiring integration and the 3D safety gate all exist, so
+ * that blanket refusal is gone. What is left is the validation that was always needed and
+ * still is — a project whose terminals exceed the compiler's limit can never be simulated,
+ * so opening it would replace a working workspace with one that cannot run.
  *
- * An invisible component that changes a circuit's electrical behaviour is worse than a
- * refusal, so this refuses. It lives at the application's load boundary rather than inside
- * the schema, because the schema's job is "is this file valid" and this is "can this build
- * show it to you" — two different questions with two different lifetimes. When C2 lands,
- * this file is deleted; the schema is untouched by that.
+ * A breadboard project is still kept out of the 3D view, but that is a *view* decision made
+ * by the workspace (see `breadboardCount` below and `CircuitPane`), not a reason to refuse
+ * the file. Loading it into 2D is correct and now supported.
  *
  * Nothing here mutates state. Callers check the verdict first and only then load.
  */
 import type { ProjectFileDTO } from '../../preload/electron-api-types';
+import type { ComponentKind } from '@offline-arduino/contracts/circuit';
+import { checkLoadedTerminalBudget } from '@offline-arduino/simulator';
 
 export type ProjectLoadVerdict = { ok: true } | { ok: false; reason: string };
 
 /** Components carried by a project DTO, whatever version it is. */
-function componentsOf(project: ProjectFileDTO): { kind?: unknown }[] {
+export function componentsOf(project: ProjectFileDTO): { kind?: unknown; id?: unknown }[] {
   const circuit = project.circuit as { components?: unknown } | null | undefined;
   return Array.isArray(circuit?.components) ? (circuit.components as { kind?: unknown }[]) : [];
 }
 
+/** How many breadboards a project contains — what the 3D gate keys off. */
+export function breadboardCount(project: ProjectFileDTO): number {
+  return componentsOf(project).filter((c) => c.kind === 'breadboard').length;
+}
+
 /**
- * Whether this build can actually open the project.
+ * Whether this build can open the project.
  *
- * Pure. Returns a verdict; it never touches the store, so a refusal cannot leave a
+ * Pure. Returns a verdict and never touches the store, so a refusal cannot leave a
  * half-loaded project behind.
  */
 export function canLoadProject(project: ProjectFileDTO): ProjectLoadVerdict {
-  const breadboards = componentsOf(project).filter((c) => c.kind === 'breadboard').length;
-  if (breadboards > 0) {
-    return {
-      ok: false,
-      reason:
-        `This project contains ${breadboards === 1 ? 'a breadboard' : `${breadboards} breadboards`}, ` +
-        'which this version cannot display yet. Breadboard authoring arrives in the next update. ' +
-        'Your file has not been changed — open it again once the update is installed.',
-    };
-  }
+  const kinds = componentsOf(project)
+    .map((c) => c.kind)
+    .filter((k): k is ComponentKind => typeof k === 'string')
+    .map((kind) => ({ kind }));
+
+  const budget = checkLoadedTerminalBudget(kinds);
+  if (!budget.withinLimit) return { ok: false, reason: budget.message ?? 'This project is too large to open.' };
+
   return { ok: true };
 }
