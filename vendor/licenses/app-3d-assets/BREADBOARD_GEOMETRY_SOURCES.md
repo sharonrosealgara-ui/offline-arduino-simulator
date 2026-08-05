@@ -119,3 +119,35 @@ tie-point counts, group topology and body dimensions are facts about a commodity
 copyrightable expression, and the near-identical layout is shared across the whole category.
 No BusBoard part number, logo, legend artwork, colour scheme or product photograph is
 reproduced.
+
+---
+
+## 3D geometry (Phase C3) — what is canonical and what is drawn
+
+The 3D breadboard exists internally as procedural three.js geometry authored for this
+project. **No third-party model, mesh, texture or image is used, and no asset is downloaded
+at build or run time.** The rendering is generic: no manufacturer name, part number, logo,
+legend artwork or product photograph is reproduced.
+
+**From the canonical contract** (`packages/contracts/src/breadboard.ts`, converted through the
+shared unit helper): the 400 hole identities and their local positions, the 64 group
+memberships, the hole pitch, and the 84 x 54.3 x 8.5 mm body envelope.
+
+**Visual approximations — design choices, not measurements:** body thickness above the bench
+and its edge treatment, hole opening size and recess depth, the visible centre-channel width
+(a *separate* quantity from the documented 7.62 mm E-to-F hole-centre distance, and never to
+be conflated with it), rail stripe geometry and offsets, printed markings, and every colour,
+roughness and material property.
+
+**Instance-order and picking contract.** All 400 openings are drawn as a single
+`THREE.InstancedMesh`. Instance *i* is canonical hole *i* — the same order the 2D view uses —
+because an instanced mesh reports only an integer when picked, and that integer is the only
+link between a click and a terminal id. `resolveInstanceTerminal` returns
+`{ componentId, terminalId }` and returns null rather than guessing for a missing,
+non-integer or out-of-range instance. Identity is always qualified by component instance:
+`bb1:A1`, `bb2:A1` and `uno1:A1` are three different terminals.
+
+**Still gated.** This geometry exists internally only. A project containing a breadboard
+cannot enter the production 3D Workspace, because C4 has not yet supplied the obstacle
+volumes and hole-specific wire-attachment portals a wire ending in a hole would need. The
+application gate stays until it does.
