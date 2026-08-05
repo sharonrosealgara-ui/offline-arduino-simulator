@@ -25,7 +25,17 @@ import {
 } from '../src/renderer/app/circuit/hardware/component-bounds';
 import { schematicToMm, schematicToWorld } from '../src/renderer/app/circuit/hardware/geometry-units';
 
-const KINDS = physicalKinds();
+/**
+ * Parts whose terminals are LEADS.
+ *
+ * A breadboard has a physical body but no conductors: its terminals are openings, not wires
+ * sticking out, so "every conductor reaches its own anchor" has nothing to check on it. It is
+ * excluded by the shape of its own declaration rather than by name — anything else that ever
+ * declares no conductors is excluded for the same honest reason.
+ */
+const KINDS = physicalKinds().filter(
+  (kind) => Object.keys(componentPhysical(kind)!.conductors).length > 0,
+);
 const ROTATIONS = [0, 90, 180, 270] as const;
 
 /** The canonical schematic rotation both renderers apply. */

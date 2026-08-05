@@ -371,12 +371,12 @@ describe('17-20: the rest of the application is untouched', () => {
 
   it('is not imported by the production 3D scene, the obstacle table or the wire router', () => {
     // These modules must not DEPEND on the breadboard: Phase B routing and the Uno's
-    // obstacles are shared machinery that a breadboard extends from the outside, never the
-    // other way round. Checked on import statements rather than on any occurrence of the
+    // obstacles are shared machinery that a breadboard extends from the OUTSIDE, never the
+    // other way round. DynamicNetlist3D is deliberately not in this list — C4 registers the
+    // breadboard there, which is the scene composing its parts, not Phase B depending on it. Checked on import statements rather than on any occurrence of the
     // word, because prose in a comment is not an integration — an earlier version of this
     // test failed on a comment that merely mentioned breadboards.
     for (const rel of [
-      'apps/desktop/src/renderer/app/circuit/DynamicNetlist3D.tsx',
       'apps/desktop/src/renderer/app/circuit/hardware/scene-obstacles.ts',
       'apps/desktop/src/renderer/app/circuit/hardware/wire-path.ts',
       'apps/desktop/src/renderer/app/circuit/hardware/parts-3d.tsx',

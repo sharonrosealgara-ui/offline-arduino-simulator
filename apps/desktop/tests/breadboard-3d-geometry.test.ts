@@ -234,8 +234,13 @@ describe('16-22: what a picked instance resolves to', () => {
 });
 
 describe('39-42: the C4 boundaries are still untouched', () => {
-  it('defines no physical body for the breadboard, so nothing else can render it', () => {
-    expect(componentPhysical('breadboard' as never)).toBeUndefined();
+  it('defines the physical body C4 approved, from the canonical envelope', () => {
+    // C3 required this to be undefined because nothing could render a breadboard. C4
+    // registers it, so the body exists — and it is the canonical 84 x 54.3 mm envelope with
+    // no conductors, because a hole is an opening and not a lead.
+    const physical = componentPhysical('breadboard' as never)!;
+    expect(physical.body).toEqual({ width: 84, depth: 54.3, height: 8.5 });
+    expect(Object.keys(physical.conductors)).toEqual([]);
   });
 
   it('registers no breadboard obstacle volume', () => {

@@ -303,6 +303,8 @@ describe('33-42: the application gate is still complete', () => {
     const obstacles = await import('../src/renderer/app/circuit/hardware/scene-obstacles');
     expect(obstacles.unoObstacleVolumes().some((v) => v.id.includes('breadboard'))).toBe(false);
     const geometry = await import('../src/renderer/app/circuit/hardware/component-geometry');
-    expect(geometry.componentPhysical('breadboard' as never)).toBeUndefined();
+    // Defined since C4, but still contributing no obstacle to the Uno's table: a breadboard
+    // is composed into the scene from outside, never merged into Phase B's own volumes.
+    expect(geometry.componentPhysical('breadboard' as never)).toBeDefined();
   });
 });

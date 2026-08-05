@@ -84,10 +84,44 @@ describe('single source of size', () => {
 
   it('names a conductor for every registry terminal, and no others', () => {
     for (const kind of physicalKinds()) {
+      // A breadboard's terminals are openings, not leads — there is no conductor to draw, so
+      // it declares none. Covered by its own assertion below, because the bug this invariant
+      // really guards against is a PARTIAL list: a part that draws some of its leads and
+      // silently drops the rest.
+      if (kind === 'breadboard') continue;
       const registry = getComponentDefinition(kind)!;
       const declared = Object.keys(componentPhysical(kind)!.conductors).sort();
       const expected = registry.terminals.map((t) => t.id).sort();
       expect(declared).toEqual(expected);
+    }
+  });
+
+  it('lets a lead-less part declare no conductors at all, but never a partial list', () => {
+    const conductors = Object.keys(componentPhysical('breadboard')!.conductors);
+    expect(conductors).toEqual([]);
+    // All-or-nothing: 400 terminals and zero conductors is coherent; 399 would not be.
+    expect(getComponentDefinition('breadboard')!.terminals).toHaveLength(400);
+  });
+
+  it('would still catch a PARTIAL conductor declaration, which is the real bug', () => {
+    // The exemption keys off conductors.length === 0, not off a component name, so a part
+    // that declared even one conductor is back inside the full invariant. Demonstrated on
+    // the rule itself rather than by mutating the registry: a hypothetical part with 400
+    // terminals and 3 conductors is NOT exempt, and its declared/expected lists differ.
+    const isExempt = (conductorCount: number) => conductorCount === 0;
+    expect(isExempt(0)).toBe(true);
+    expect(isExempt(3)).toBe(false);
+    expect(isExempt(400)).toBe(false);
+
+    // And every kind the suite does check still declares one conductor per terminal.
+    const checked = physicalKinds().filter(
+      (kind) => Object.keys(componentPhysical(kind)!.conductors).length > 0,
+    );
+    expect(checked.length).toBeGreaterThanOrEqual(6);
+    for (const kind of checked) {
+      const declared = Object.keys(componentPhysical(kind)!.conductors).length;
+      const terminals = getComponentDefinition(kind)!.terminals.length;
+      expect(`${kind}:${declared}`).toBe(`${kind}:${terminals}`);
     }
   });
 

@@ -200,6 +200,25 @@ const PHYSICAL: Partial<Record<ComponentKind, ComponentPhysical>> = {
   potentiometer: POTENTIOMETER,
   servo: SERVO,
   lcd1602: LCD1602,
+  /**
+   * A generic 400 tie-point breadboard.
+   *
+   * Body is the canonical envelope; the 8.5 mm thickness is documented, the rest of the 3D
+   * treatment is approximation (see BREADBOARD_GEOMETRY_SOURCES.md). `conductors` is empty
+   * on purpose: a hole is an opening, not a lead, so nothing here draws a wire stub. Terminal
+   * positions come from `breadboard-3d-geometry.ts` rather than the generic conductor path —
+   * this entry exists so the board has a physical body for bounds and obstacles.
+   */
+  breadboard: {
+    kind: 'breadboard',
+    body: { width: 84, depth: 54.3, height: 8.5 },
+    bodyOffset: null,
+    standoff: 0,
+    features: {},
+    conductors: {},
+    selection: { paddingMm: 1.5, minSizeMm: 10 },
+    label: { gapMm: 2.5 },
+  },
 };
 
 export function componentPhysical(kind: ComponentKind): ComponentPhysical | undefined {

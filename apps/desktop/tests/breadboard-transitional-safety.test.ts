@@ -136,8 +136,10 @@ describe('breadboard terminals never reach the 3D layers in this milestone', () 
     expect(terminalKey('bb1', 'A1')).not.toBe(terminalKey('uno1', 'A1'));
   });
 
-  it('has no physical geometry, so nothing could render it', async () => {
+  it('has a physical body since C4, but still no Uno obstacle entry', async () => {
     const geometry = await import('../src/renderer/app/circuit/hardware/component-geometry');
-    expect(geometry.componentPhysical('breadboard' as never)).toBeUndefined();
+    expect(geometry.componentPhysical('breadboard' as never)).toBeDefined();
+    const obstacles = await import('../src/renderer/app/circuit/hardware/scene-obstacles');
+    expect(obstacles.unoObstacleVolumes().some((v) => v.id.includes('breadboard'))).toBe(false);
   });
 });

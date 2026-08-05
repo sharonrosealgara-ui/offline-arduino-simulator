@@ -47,6 +47,14 @@ import {
 } from './hardware/component-bounds';
 import { Part3D, terminalsOf } from './hardware/parts-3d';
 import { WIRE_SELECTED_HEX, wireRenderHex, type WireRenderContext } from './hardware/wire-colors';
+import {
+  breadboardPlacements,
+  breadboardTerminalPositions,
+  sceneWireClearance,
+  wireApproachExemptions,
+  wirePointsWithPortals,
+} from './hardware/breadboard-scene';
+import { BreadboardNode } from './hardware/BreadboardNode';
 import { buildWireCurve, wireRadius, type WireClearanceContext } from './hardware/wire-path';
 import {
   BOARD_AT_SCENE_ORIGIN,
@@ -137,6 +145,22 @@ export function DynamicNetlist3D({ quality = 'high' }: DynamicNetlist3DProps): J
     // could leave endpoints behind.
   }, [components, to3D, origin]);
 
+  /** Every breadboard, placed in scene coordinates. Empty for circuits without one. */
+  const breadboards = useMemo(() => breadboardPlacements(components, origin), [components, origin]);
+
+  /**
+   * Hole anchors, merged in alongside ordinary terminals.
+   *
+   * A breadboard hole is an ordinary wire endpoint; the rest of the scene should not have to
+   * know which kind of terminal it is holding.
+   */
+  const allTerminalPos = useMemo(() => {
+    if (breadboards.length === 0) return terminalPos;
+    const merged = new Map(terminalPos);
+    for (const [key, position] of breadboardTerminalPositions(breadboards)) merged.set(key, position);
+    return merged;
+  }, [terminalPos, breadboards]);
+
   /**
    * Where the board sits in the scene. The renderer centres the world on the Uno today, so
    * this resolves to the origin — but it is read from the component rather than assumed, so
@@ -158,8 +182,8 @@ export function DynamicNetlist3D({ quality = 'high' }: DynamicNetlist3DProps): J
   return (
     <group name="dynamic-netlist">
       {wires.map((w) => {
-        const a = terminalPos.get(terminalKey(w.from.componentId, w.from.terminalId));
-        const b = terminalPos.get(terminalKey(w.to.componentId, w.to.terminalId));
+        const a = allTerminalPos.get(terminalKey(w.from.componentId, w.from.terminalId));
+        const b = allTerminalPos.get(terminalKey(w.to.componentId, w.to.terminalId));
         if (!a || !b) return null;
         const mids = w.waypoints.map((wp) => to3D(wp, WIRE_LIFT));
         // A wire end plugged into a board header legitimately starts inside that connector —
@@ -174,15 +198,22 @@ export function DynamicNetlist3D({ quality = 'high' }: DynamicNetlist3DProps): J
           const volumeId = headerVolumeIdForPin(end.terminalId);
           if (volumeId) exemptions.push({ point: at, volumeId });
         }
+        // anchor -> portal -> global route -> portal -> anchor. An end that is not a hole
+        // contributes its anchor alone, exactly as before.
+        const routed = breadboards.length
+          ? wirePointsWithPortals(w, { from: a, to: b }, mids, breadboards)
+          : [a, ...mids, b];
+        const approach = breadboards.length ? wireApproachExemptions(w, breadboards) : [];
+
         return (
           <NetWire
             key={w.id}
             id={w.id}
-            points={[a, ...mids, b]}
+            points={routed}
             role={w.colorRole}
             selected={selected.has(w.id)}
             high={high}
-            clearance={unoWireClearance(unoPlacement, exemptions)}
+            clearance={sceneWireClearance(unoWireClearance(unoPlacement, exemptions), breadboards, approach)}
           />
         );
       })}
@@ -190,7 +221,7 @@ export function DynamicNetlist3D({ quality = 'high' }: DynamicNetlist3DProps): J
       {/* Preview of the wire currently being drawn, anchored to the first terminal. */}
       {pendingWireFrom && (
         <PendingWirePreview
-          anchor={terminalPos.get(terminalKey(pendingWireFrom.componentId, pendingWireFrom.terminalId))}
+          anchor={allTerminalPos.get(terminalKey(pendingWireFrom.componentId, pendingWireFrom.terminalId))}
         />
       )}
 
@@ -201,6 +232,9 @@ export function DynamicNetlist3D({ quality = 'high' }: DynamicNetlist3DProps): J
       {components.map((c) => {
         const def = getComponentDefinition(c.kind);
         if (!def) return null;
+        // A breadboard's 400 holes are picked from its instanced mesh, not from 400 anchor
+        // objects — that is the entire reason the mesh is instanced.
+        if (c.kind === 'breadboard') return null;
         const show = shouldShowTerminals({
           isBoard: c.kind === 'uno-r3',
           wiring,
@@ -228,7 +262,9 @@ export function DynamicNetlist3D({ quality = 'high' }: DynamicNetlist3DProps): J
       })}
 
       {components.map((c) =>
-        c.kind === 'uno-r3' ? null : (
+        c.kind === 'breadboard' ? (
+          <BreadboardNode key={c.id} component={c} origin={origin} selected={selected.has(c.id)} />
+        ) : c.kind === 'uno-r3' ? null : (
           <ComponentNode
             key={c.id}
             component={c}
