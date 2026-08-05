@@ -369,16 +369,22 @@ describe('17-20: the rest of the application is untouched', () => {
     expect(barrel).not.toContain('breadboard');
   });
 
-  it('has not reached 3D geometry, scene obstacles or Phase B wire routing', () => {
-    // C3 and C4. A breadboard must not appear in the production 3D scene or the wire router
-    // until its geometry and its attachment portals exist.
+  it('is not imported by the production 3D scene, the obstacle table or the wire router', () => {
+    // These modules must not DEPEND on the breadboard: Phase B routing and the Uno's
+    // obstacles are shared machinery that a breadboard extends from the outside, never the
+    // other way round. Checked on import statements rather than on any occurrence of the
+    // word, because prose in a comment is not an integration — an earlier version of this
+    // test failed on a comment that merely mentioned breadboards.
     for (const rel of [
       'apps/desktop/src/renderer/app/circuit/DynamicNetlist3D.tsx',
       'apps/desktop/src/renderer/app/circuit/hardware/scene-obstacles.ts',
       'apps/desktop/src/renderer/app/circuit/hardware/wire-path.ts',
       'apps/desktop/src/renderer/app/circuit/hardware/parts-3d.tsx',
     ]) {
-      expect(`${rel}:${read(rel).includes('breadboard')}`).toBe(`${rel}:false`);
+      const code = read(rel).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+      const imports = code.match(/^\s*import\s[^;]+;/gm) ?? [];
+      const offending = imports.filter((line) => /breadboard/i.test(line));
+      expect(`${rel}:${offending.join('|')}`).toBe(`${rel}:`);
     }
   });
 

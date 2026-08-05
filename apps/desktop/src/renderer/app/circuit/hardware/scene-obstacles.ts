@@ -244,6 +244,16 @@ export function requiredWireCentreYAt(
   return required;
 }
 
+/**
+ * The shape `buildWireCurve` needs from any clearance source.
+ *
+ * Named so other sources — a breadboard, and whatever comes after it — can satisfy the same
+ * contract and be combined, instead of each inventing its own router.
+ */
+export interface WireClearanceContextLike {
+  requiredCentreYAt(point: THREE.Vector3): number;
+}
+
 /** The clearance rule for a wire near a board, ready to hand to `buildWireCurve`. */
 export function unoWireClearance(
   placement: UnoPlacement = BOARD_AT_SCENE_ORIGIN,
