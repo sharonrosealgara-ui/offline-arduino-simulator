@@ -38,6 +38,24 @@ import {
 } from './breadboard-3d-geometry';
 import { holesInSameGroup, occupiedHoles } from '../breadboard-connections';
 
+/**
+ * How far the openings and the rail stripes sit proud of the body's top face.
+ *
+ * WHY THIS EXISTS. The body is a solid box whose top face is at `body.height`. The opening
+ * boxes were positioned so their own top face landed at exactly `body.height` too — the same
+ * plane, to the last floating-point digit — and the rail stripes' undersides sat there as
+ * well. Two surfaces at identical depth leave the winner to per-fragment rounding, and
+ * because a quad is two triangles with slightly different interpolated depth, that showed up
+ * as striped triangular wedges inside the holes that shifted as the camera moved.
+ *
+ * 0.02 mm is far below anything visible at these camera distances but comfortably beyond the
+ * depth buffer's resolving power here (near 0.05, far 60), so the ordering is decided by
+ * geometry instead of by noise. The material also carries a negative polygon offset, which
+ * biases the openings toward the camera for the same reason — belt and braces, because a
+ * hole that flickers is worse than a hole drawn a fiftieth of a millimetre too high.
+ */
+const SURFACE_LIFT = 0.02 / 25.4;
+
 /** APPROXIMATION — generic off-white ABS, and the two rail colours by convention. */
 const BODY_COLOR = '#eef0ec';
 const CHANNEL_COLOR = '#d6d9d4';
@@ -106,7 +124,7 @@ function Breadboard3DImpl({
     if (!mesh) return;
     const matrix = new THREE.Matrix4();
     for (const hole of holes) {
-      matrix.makeTranslation(hole.x, body.height - HOLE_OPENING_DEPTH / 2, hole.z);
+      matrix.makeTranslation(hole.x, body.height - HOLE_OPENING_DEPTH / 2 + SURFACE_LIFT, hole.z);
       mesh.setMatrixAt(hole.index, matrix);
     }
     mesh.instanceMatrix.needsUpdate = true;
@@ -171,7 +189,7 @@ function Breadboard3DImpl({
         <mesh
           key={rail.id}
           name={`breadboard-rail-${rail.id}`}
-          position={[0, body.height + 0.001, rail.z + (rail.positive ? -0.035 : 0.035)]}
+          position={[0, body.height + SURFACE_LIFT * 2 + 0.001, rail.z + (rail.positive ? -0.035 : 0.035)]}
         >
           <boxGeometry args={[body.width * 0.9, 0.002, 0.012]} />
           <meshStandardMaterial color={rail.positive ? POSITIVE_COLOR : NEGATIVE_COLOR} roughness={0.7} />
@@ -192,7 +210,13 @@ function Breadboard3DImpl({
           onPickTerminal?.(ref);
         }}
       >
-        <meshStandardMaterial vertexColors roughness={0.6} />
+        <meshStandardMaterial
+          vertexColors
+          roughness={0.6}
+          polygonOffset
+          polygonOffsetFactor={-2}
+          polygonOffsetUnits={-2}
+        />
       </instancedMesh>
     </group>
   );
