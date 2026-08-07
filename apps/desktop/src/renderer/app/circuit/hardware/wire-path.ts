@@ -208,15 +208,32 @@ export function buildWireCurveWithDiagnostics(
     iterations += 1;
   }
 
-  // Deterministic terminal state: if the budget is spent, take the sag out altogether and
-  // hold the interior points at least at the highest clearance the route demands. A path with
-  // no downward bend cannot dive under what it has to clear.
+  /*
+   * Deterministic terminal state: if the budget is spent, take the sag out altogether and
+   * hold every interior point at least as high as the route's greatest requirement. A path
+   * with no downward bend cannot dive under what it has to clear.
+   *
+   * The lift is a single uniform TRANSLATION rather than a per-point clamp. The clamp form,
+   * `Math.max(flatY[i], highest)`, flattened every interior point of a span onto one height
+   * whenever `highest` dominated — and a wire ending in a breadboard hole has a span whose
+   * ends share an x and a z exactly (the anchor and the portal directly above it). Flattening
+   * that span's five interior points produced five coincident control points, hence
+   * zero-length curve segments, handed straight to TubeGeometry.
+   *
+   * Translating by `highest - min(flatY)` keeps every relative difference intact, so points
+   * that were distinct stay distinct, while still putting the lowest of them exactly on
+   * `highest` and therefore all of them at or above it. That is the same guarantee the clamp
+   * gave, without the collapse — and it needs no epsilon, so there is no new tolerance to
+   * justify or to drift.
+   */
   let usedFallback = false;
   if (measured.margin < -WIRE_CLEARANCE_TOLERANCE) {
     usedFallback = true;
     const highest = highestRequired(curve, clearance);
+    const lowestFlat = Math.min(...flatY);
+    const lift = Math.max(0, highest - lowestFlat);
     for (let i = 0; i < interior.length; i += 1) {
-      control[interior[i]].y = Math.max(flatY[i], highest);
+      control[interior[i]].y = flatY[i] + lift;
     }
     curve = rebuild();
     measured = measure(curve, clearance);
