@@ -4,22 +4,33 @@
  * voltages, frames, compiled HEX, LCD/servo transient state, or terminal output.
  * Source: FRONTEND_AND_SIMULATOR_WORKER_SPEC.md §16.
  *
- * TWO VERSIONS, TWO REAL READERS
- * ------------------------------
+ * THREE VERSIONS, THREE REAL READERS
+ * ----------------------------------
  * Version 2 exists for exactly one reason: a project may now contain a `breadboard`, and a
  * build that predates it would silently drop or mis-handle that component. The version bump
  * is what makes an older reader refuse the file instead of guessing.
  *
  * The v1 reader is preserved and still rejects `breadboard`. That matters: if both versions
  * shared one permissive kind list the bump would be decoration — a v1 file could carry a v2
- * component and nothing would notice. The two readers are built from two separate frozen
- * kind lists, and the only difference between them is that one entry.
+ * component and nothing would notice. The readers are built from separate frozen kind lists.
  *
- * Nothing else changes across the version. No lead-insertion field, no occupancy field, no
- * 3D placeholder: unused structure in a file format is a promise the code has not made.
+ * Version 3 exists for the same kind of reason: a component may now record which breadboard
+ * hole each of its terminals is plugged into. A v2 reader meeting that field would strip it
+ * silently — zod objects drop unknown keys — and hand back a project whose parts had quietly
+ * come unplugged. The version literal is what stops that: `projectFileSchemaV2` requires
+ * `schemaVersion: 2`, so a v3 file is refused outright rather than partially understood.
+ *
+ * V3 IS DORMANT
+ * -------------
+ * It is defined, validated and migratable here, and nothing writes one. `parseProjectFile`
+ * still reads v1 and v2 and still returns v2; CURRENT_PROJECT_SCHEMA_VERSION is still 2; the
+ * IPC DTO still declares `1 | 2`. Raising the written version is a user-visible change to
+ * every saved file, and it belongs to the checkpoint that gives attachments meaning — not to
+ * the one that merely gives them a shape. Until then no v3 file can exist, so refusing to
+ * read one costs nothing.
  */
 import { z } from 'zod';
-import { PROJECT_KINDS_V1, PROJECT_KINDS_V2 } from '@offline-arduino/contracts/circuit';
+import { PROJECT_KINDS_V1, PROJECT_KINDS_V2, PROJECT_KINDS_V3 } from '@offline-arduino/contracts/circuit';
 
 const pointSchema = z.object({ x: z.number().finite(), y: z.number().finite() });
 
@@ -40,6 +51,29 @@ const componentShape = {
 
 const componentSchemaV1 = z.object({ ...componentShape, kind: z.enum(PROJECT_KINDS_V1) });
 const componentSchemaV2 = z.object({ ...componentShape, kind: z.enum(PROJECT_KINDS_V2) });
+
+/**
+ * One terminal plugged into one breadboard hole.
+ *
+ * `kind` is a literal, not a free string: an attachment this build does not understand must
+ * fail loudly here rather than arrive at the renderer as an object with a surprising shape.
+ * The two ids are bounded like every other id in this file and, like them, are checked for
+ * shape only — whether the board exists and whether the hole is real are questions about a
+ * whole circuit, which a per-field schema cannot answer and should not pretend to.
+ */
+const terminalAttachmentSchema = z.object({
+  kind: z.literal('breadboard-hole'),
+  breadboardId: z.string().min(1).max(128),
+  holeId: z.string().min(1).max(64),
+});
+
+const componentSchemaV3 = z.object({
+  ...componentShape,
+  kind: z.enum(PROJECT_KINDS_V3),
+  // Keyed by terminal id, so an empty key is rejected the same way an empty id would be.
+  // Optional, never defaulted: absent and empty must not become two ways to say "unplugged".
+  terminalAttachments: z.record(z.string().min(1).max(64), terminalAttachmentSchema).optional(),
+});
 
 const wireSchema = z.object({
   id: z.string().min(1).max(128),
@@ -72,6 +106,12 @@ export const projectCircuitSchemaV2 = z.object({
   ...circuitShape,
 });
 
+export const projectCircuitSchemaV3 = z.object({
+  schemaVersion: z.literal(3),
+  components: z.array(componentSchemaV3).max(250),
+  ...circuitShape,
+});
+
 const projectFileShape = {
   projectId: z.string().min(1).max(128),
   name: z.string().max(200),
@@ -93,10 +133,23 @@ export const projectFileSchemaV2 = z.object({
   circuit: projectCircuitSchemaV2,
 });
 
+export const projectFileSchemaV3 = z.object({
+  ...projectFileShape,
+  schemaVersion: z.literal(3),
+  circuit: projectCircuitSchemaV3,
+});
+
 export type ProjectFileV1 = z.infer<typeof projectFileSchemaV1>;
 export type ProjectFileV2 = z.infer<typeof projectFileSchemaV2>;
+export type ProjectFileV3 = z.infer<typeof projectFileSchemaV3>;
 
-/** The current on-disk shape. New saves are always this. */
+/**
+ * The current on-disk shape. New saves are always this.
+ *
+ * Still v2 while v3 is dormant: this alias is what the save path and the IPC boundary are
+ * typed against, so moving it is the moment every saved file changes version. That is the
+ * attachment-interaction checkpoint's decision to make, not this one's.
+ */
 export type ProjectFile = ProjectFileV2;
 
 /**
@@ -131,6 +184,37 @@ export function migrateProjectV1ToV2(project: ProjectFileV1): ProjectFileV2 {
     schemaVersion: 2,
     circuit: { ...project.circuit, schemaVersion: 2 },
   };
+}
+
+/**
+ * Raises a v2 project to v3.
+ *
+ * Same discipline as the v1 migration: the two version numbers change and nothing else. In
+ * particular no component gains `terminalAttachments`. A v2 project has no attachments —
+ * its reader has no field for them — so there is nothing to translate, and writing an empty
+ * record into every component would be inventing information the file never contained.
+ */
+export function migrateProjectV2ToV3(project: ProjectFileV2): ProjectFileV3 {
+  return {
+    ...project,
+    schemaVersion: 3,
+    circuit: { ...project.circuit, schemaVersion: 3 },
+  };
+}
+
+/**
+ * Raises any supported project to v3, chaining through v2 when it starts at v1.
+ *
+ * Idempotent on data that is already v3: it is returned unchanged, by value and by identity,
+ * so a caller that migrates defensively cannot disturb a project that needed nothing.
+ *
+ * Not yet used by the load path — `parseProjectFile` still returns v2 — because nothing
+ * writes v3. It exists so the migration is written and proven alongside the shape it
+ * migrates, rather than improvised later against a format already in users' hands.
+ */
+export function migrateProjectToV3(project: ProjectFileV1 | ProjectFileV2 | ProjectFileV3): ProjectFileV3 {
+  if (project.schemaVersion === 3) return project;
+  return migrateProjectV2ToV3(project.schemaVersion === 1 ? migrateProjectV1ToV2(project) : project);
 }
 
 export type ProjectParseResult =

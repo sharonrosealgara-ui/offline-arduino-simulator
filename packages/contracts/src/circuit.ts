@@ -38,7 +38,23 @@ export const PROJECT_KINDS_V1 = [
 /** The v1 set plus `breadboard` — the only difference the version bump introduces. */
 export const PROJECT_KINDS_V2 = [...PROJECT_KINDS_V1, 'breadboard'] as const;
 
-/** Project-circuit schema versions this application understands. */
+/**
+ * v3 adds no kinds. Its only difference from v2 is `terminalAttachments`.
+ *
+ * Frozen separately anyway, following the same rule as V1 and V2: a version's kind list is
+ * fixed at the moment that version ships, so a later addition to one list cannot silently
+ * change what an older reader accepts.
+ */
+export const PROJECT_KINDS_V3 = [...PROJECT_KINDS_V2] as const;
+
+/**
+ * Project-circuit schema versions this application can COMPILE.
+ *
+ * Deliberately still 1 and 2. Version 3 exists as a persisted shape (see project-schema.ts)
+ * but nothing writes one and the netlist compiler does not yet understand attachments, so
+ * admitting 3 here would claim an electrical capability that does not exist. It is added
+ * when the compiler learns to union attachments, not before.
+ */
 export const SUPPORTED_CIRCUIT_SCHEMA_VERSIONS = [1, 2] as const;
 export const CURRENT_CIRCUIT_SCHEMA_VERSION = 2;
 
@@ -52,6 +68,27 @@ export interface TerminalRef {
   terminalId: string;
 }
 
+/**
+ * One of this component's terminals, plugged into one breadboard hole.
+ *
+ * A jumper wire already reaches a hole by naming it as a `TerminalRef` endpoint. This is the
+ * other way a hole gets a conductor: the part's own lead sits in it, with no wire involved.
+ *
+ * `kind` is a discriminant rather than decoration. A lead can only enter a hole today, but
+ * screw terminals and header sockets are the same relationship to a different receptacle, and
+ * a reader that meets one must be able to refuse it by name rather than misread it.
+ *
+ * Deliberately records identity only — which board, which hole. Where the lead is drawn,
+ * whether the hole is free, whether the spacing is physically possible and what the netlist
+ * should do about it are all separate questions, answered by later checkpoints. Storing a
+ * position here would be storing derived state, which project files do not do.
+ */
+export interface TerminalAttachment {
+  kind: 'breadboard-hole';
+  breadboardId: string;
+  holeId: string;
+}
+
 export interface CircuitComponent {
   id: string;
   kind: ComponentKind;
@@ -60,6 +97,16 @@ export interface CircuitComponent {
   rotation: 0 | 90 | 180 | 270;
   label: string;
   properties: Record<string, string | number | boolean>;
+  /**
+   * Terminal id -> the hole that terminal is plugged into. Absent when nothing is plugged in,
+   * which is every project that exists today.
+   *
+   * Optional rather than defaulted to `{}`: an empty record and a missing field would mean the
+   * same thing, and writing one into every migrated project would be fabricating data.
+   *
+   * Persisted only from project schemaVersion 3. The v1 and v2 readers do not carry it.
+   */
+  terminalAttachments?: Record<string, TerminalAttachment>;
 }
 
 export type WireColorRole =
@@ -86,8 +133,13 @@ export interface CircuitJunction {
 }
 
 export interface ProjectCircuit {
-  /** 1 for legacy files; 2 once a breadboard can be present. Both are read. */
-  schemaVersion: 1 | 2;
+  /**
+   * 1 for legacy files; 2 once a breadboard can be present; 3 once a terminal can be plugged
+   * into a hole. 1 and 2 are read and compiled. 3 is a shape the type system can express and
+   * the schema can validate, but no build writes one yet and the compiler still refuses it —
+   * see SUPPORTED_CIRCUIT_SCHEMA_VERSIONS.
+   */
+  schemaVersion: 1 | 2 | 3;
   components: CircuitComponent[];
   wires: CircuitWire[];
   junctions: CircuitJunction[];
