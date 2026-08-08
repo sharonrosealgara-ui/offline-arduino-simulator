@@ -93,6 +93,14 @@ export interface DynamicNetlist3DProps {
   quality?: 'low' | 'high';
 }
 
+/** One wire's routed geometry inputs, held stable while its routing inputs are unchanged. */
+interface RoutedWire {
+  id: string;
+  role: WireColorRole;
+  points: THREE.Vector3[];
+  clearance: WireClearanceContext;
+}
+
 export function DynamicNetlist3D({ quality = 'high' }: DynamicNetlist3DProps): JSX.Element {
   const { components, wires, selectedIds, pendingWireFrom } = useCircuit();
   const [hoveredId, setHoveredId] = useState<string | null>(null);
@@ -179,44 +187,73 @@ export function DynamicNetlist3D({ quality = 'high' }: DynamicNetlist3DProps): J
   const wiring = pendingWireFrom !== null;
   const selected = useMemo(() => new Set(selectedIds), [selectedIds]);
 
+  /**
+   * Every wire's route and clearance rule, derived once per genuine change.
+   *
+   * This used to be computed inline in the JSX below, which meant `points` and `clearance`
+   * were brand-new objects on every render — `sceneWireClearance` and `wirePointsWithPortals`
+   * both return fresh literals, and `[a, ...mids, b]` is a fresh array. NetWire's `useMemo`
+   * therefore never once hit, and `buildWireCurve` ran again for every wire on every render:
+   * hovering a part, selecting one, or beginning a wire re-sampled 4096 points per clearance
+   * pass, per wire, for routes that had not moved at all.
+   *
+   * The dependencies are exactly the inputs the routing reads, and every one of them is
+   * replaced immutably by the store rather than mutated — `moveComponent` rebuilds the
+   * component array, `selectIds` and `pendingWireFrom` leave `components` and `wires`
+   * untouched. So identity here means "the route could have changed", never "some unrelated
+   * part of the app re-rendered". A move, rotation, wire edit, board placement or waypoint
+   * change still recomputes; nothing else does.
+   */
+  const routedWires = useMemo(
+    () =>
+      wires
+        .map((w) => {
+          const a = allTerminalPos.get(terminalKey(w.from.componentId, w.from.terminalId));
+          const b = allTerminalPos.get(terminalKey(w.to.componentId, w.to.terminalId));
+          if (!a || !b) return null;
+          const mids = w.waypoints.map((wp) => to3D(wp, WIRE_LIFT));
+          // A wire end plugged into a board header legitimately starts inside that connector —
+          // and inside nothing else. Exempt exactly the header holding its own pin.
+          const exemptions: AttachmentExemption[] = [];
+          for (const [end, at] of [
+            [w.from, a],
+            [w.to, b],
+          ] as const) {
+            const component = components.find((c) => c.id === end.componentId);
+            if (component?.kind !== 'uno-r3') continue;
+            const volumeId = headerVolumeIdForPin(end.terminalId);
+            if (volumeId) exemptions.push({ point: at, volumeId });
+          }
+          // anchor -> portal -> global route -> portal -> anchor. An end that is not a hole
+          // contributes its anchor alone, exactly as before.
+          const routed = breadboards.length
+            ? wirePointsWithPortals(w, { from: a, to: b }, mids, breadboards)
+            : [a, ...mids, b];
+          const approach = breadboards.length ? wireApproachExemptions(w, breadboards) : [];
+          return {
+            id: w.id,
+            role: w.colorRole,
+            points: routed,
+            clearance: sceneWireClearance(unoWireClearance(unoPlacement, exemptions), breadboards, approach),
+          };
+        })
+        .filter((r): r is RoutedWire => r !== null),
+    [wires, allTerminalPos, breadboards, unoPlacement, components, to3D],
+  );
+
   return (
     <group name="dynamic-netlist">
-      {wires.map((w) => {
-        const a = allTerminalPos.get(terminalKey(w.from.componentId, w.from.terminalId));
-        const b = allTerminalPos.get(terminalKey(w.to.componentId, w.to.terminalId));
-        if (!a || !b) return null;
-        const mids = w.waypoints.map((wp) => to3D(wp, WIRE_LIFT));
-        // A wire end plugged into a board header legitimately starts inside that connector —
-        // and inside nothing else. Exempt exactly the header holding its own pin.
-        const exemptions: AttachmentExemption[] = [];
-        for (const [end, at] of [
-          [w.from, a],
-          [w.to, b],
-        ] as const) {
-          const component = components.find((c) => c.id === end.componentId);
-          if (component?.kind !== 'uno-r3') continue;
-          const volumeId = headerVolumeIdForPin(end.terminalId);
-          if (volumeId) exemptions.push({ point: at, volumeId });
-        }
-        // anchor -> portal -> global route -> portal -> anchor. An end that is not a hole
-        // contributes its anchor alone, exactly as before.
-        const routed = breadboards.length
-          ? wirePointsWithPortals(w, { from: a, to: b }, mids, breadboards)
-          : [a, ...mids, b];
-        const approach = breadboards.length ? wireApproachExemptions(w, breadboards) : [];
-
-        return (
-          <NetWire
-            key={w.id}
-            id={w.id}
-            points={routed}
-            role={w.colorRole}
-            selected={selected.has(w.id)}
-            high={high}
-            clearance={sceneWireClearance(unoWireClearance(unoPlacement, exemptions), breadboards, approach)}
-          />
-        );
-      })}
+      {routedWires.map((r) => (
+        <NetWire
+          key={r.id}
+          id={r.id}
+          points={r.points}
+          role={r.role}
+          selected={selected.has(r.id)}
+          high={high}
+          clearance={r.clearance}
+        />
+      ))}
 
       {/* Preview of the wire currently being drawn, anchored to the first terminal. */}
       {pendingWireFrom && (
