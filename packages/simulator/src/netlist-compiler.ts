@@ -22,6 +22,7 @@ import type {
 } from '@offline-arduino/contracts/simulator';
 import { UNO_PIN_MAP, UNO_RAIL_5V, UNO_RAIL_3V3, UNO_RAIL_GND } from './board/uno';
 import { getComponentDefinition, terminalKey } from './circuit-model/component-registry';
+import { validateBreadboardAttachments } from './circuit-model/breadboard-attachment';
 import { sha256Hex } from './util/sha256';
 
 export const NETLIST_LIMITS = {
@@ -243,6 +244,80 @@ export function compileNetlist(project: ProjectCircuit): RuntimeNetlist {
     for (const group of definition.permanentlyCommonTerminals ?? []) {
       const keys = group.map((terminalId) => terminalKey(component.id, terminalId));
       for (let i = 1; i < keys.length; i += 1) ds.union(keys[0], keys[i]);
+    }
+  }
+
+  /*
+   * Component leads plugged straight into breadboard holes.
+   *
+   * The third and last way two terminals become common. A wire says so explicitly, the
+   * registry says so permanently, and this says so physically: a lead in a hole is joined to
+   * that hole, and through the board's own strip to everything else in it. Leaving it out
+   * would not make the circuit incomplete — it would make it WRONG, reporting a student's
+   * plugged-in LED as floating.
+   *
+   * Runs after the registry groups so a hole's strip is already common by the time a lead
+   * joins it. The order is presentational only: net ids hash the sorted terminal set, not the
+   * union sequence, so the partition and the output are identical either way.
+   *
+   * Legality is decided by the C5.2 validator, not restated here. An attachment named in ANY
+   * issue is excluded from connectivity entirely — not the one issue kind that looks fatal,
+   * every kind — because a claim the validator would not stand behind must not silently
+   * become a net.
+   */
+  const attachments = validateBreadboardAttachments({ components: validComponents, wires: validWires });
+
+  // Nested rather than a joined string key: nothing constrains an id to exclude a separator,
+  // and a collision here would union an attachment the validator rejected.
+  const rejectedTerminals = new Map<string, Set<string>>();
+  for (const issue of attachments.issues) {
+    let terminals = rejectedTerminals.get(issue.componentId);
+    if (!terminals) {
+      terminals = new Set<string>();
+      rejectedTerminals.set(issue.componentId, terminals);
+    }
+    terminals.add(issue.terminalId);
+
+    /*
+     * One compiler code, the validator's own code carried in the text.
+     *
+     * `CircuitDiagnostic` has no terminal or hole field, so the identifiers that are not a
+     * component id live in the message — which is what a student reads anyway. The id is
+     * built here rather than through `error()` because that helper keys on component id
+     * alone: two bad leads on one part would collide, and the Problems panel renders by
+     * `d.id`, so one of them would be lost. Every validator issue must survive to the panel.
+     */
+    const conflict =
+      issue.conflictsWith?.kind === 'wire'
+        ? ` It is already taken by wire ${issue.conflictsWith.wireId}.`
+        : issue.conflictsWith?.kind === 'lead'
+          ? ` It is already taken by ${issue.conflictsWith.componentId} ${issue.conflictsWith.terminalId}.`
+          : '';
+    const discriminator =
+      issue.conflictsWith?.kind === 'wire'
+        ? `:${issue.conflictsWith.wireId}`
+        : issue.conflictsWith?.kind === 'lead'
+          ? `:${issue.conflictsWith.componentId}:${issue.conflictsWith.terminalId}`
+          : '';
+    diagnostics.add({
+      id: `INVALID_ATTACHMENT:${issue.componentId}:${issue.terminalId}:${issue.code}${discriminator}`,
+      severity: 'error',
+      code: 'INVALID_ATTACHMENT',
+      message:
+        `${issue.componentId} ${issue.terminalId} cannot be plugged into ${issue.breadboardId} ${issue.holeId} ` +
+        `(${issue.code}).${conflict} That connection is ignored; the rest of the circuit still builds.`,
+      componentIds: [issue.componentId],
+    });
+  }
+
+  for (const component of validComponents) {
+    if (!component.terminalAttachments) continue;
+    const rejected = rejectedTerminals.get(component.id);
+    for (const [terminalId, attachment] of Object.entries(component.terminalAttachments).sort(([a], [b]) =>
+      a.localeCompare(b),
+    )) {
+      if (rejected?.has(terminalId)) continue;
+      ds.union(terminalKey(component.id, terminalId), terminalKey(attachment.breadboardId, attachment.holeId));
     }
   }
 
