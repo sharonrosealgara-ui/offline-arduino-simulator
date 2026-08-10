@@ -334,7 +334,7 @@ export const COMPONENT_CATALOG: readonly CatalogEntry[] = [
     name: '400-Tie-Point Breadboard',
     summary: 'Solderless breadboard. Each five-hole strip is joined inside; the four rails are separate.',
     guidance:
-      'Each column of five holes on one side of the centre channel is joined internally — nothing crosses the channel, so the two halves are separate. The four rails along the edges are four separate runs. One hole takes one wire; if a hole is full the board suggests free holes joined to the same points. Jumper wires only for now: plugging component legs straight into holes comes later, and 3D breadboard support arrives in the next milestone.',
+      'Each five-hole column on one side of the centre channel is joined internally — nothing crosses the channel, so the two halves are separate. The four rails along the edges are four separate runs. One hole takes one wire; if a hole is full the board suggests free holes joined to the same points. Jumper wires only for now: placing a component leg straight into a hole is not available yet, and the 3D view stays off for breadboards until that placement and saving it are both finished.',
     terminals: [],
     properties: [],
     rotatable: true,

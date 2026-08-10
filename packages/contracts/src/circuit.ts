@@ -50,10 +50,26 @@ export const PROJECT_KINDS_V3 = [...PROJECT_KINDS_V2] as const;
 /**
  * Project-circuit schema versions this application can COMPILE.
  *
- * Deliberately still 1 and 2. Version 3 exists as a persisted shape (see project-schema.ts)
- * but nothing writes one and the netlist compiler does not yet understand attachments, so
- * admitting 3 here would claim an electrical capability that does not exist. It is added
- * when the compiler learns to union attachments, not before.
+ * Deliberately still 1 and 2, and the reason is no longer the one first written here.
+ *
+ * Four capabilities have to be distinguished, because three of them now exist and the fourth
+ * is what this constant is really waiting for:
+ *
+ *  - the SHAPE is defined: `TerminalAttachment` and `componentSchemaV3` describe an
+ *    attachment and validate its structure (see project-schema.ts);
+ *  - VALIDITY is decided: `validateBreadboardAttachments` answers whether a given attachment
+ *    is referentially and physically legal;
+ *  - ELECTRICAL MEANING exists: the netlist compiler unions valid attachments into nets and
+ *    reports invalid ones as diagnostics. The earlier note here saying the compiler "does not
+ *    yet understand attachments" was true when written and is not any more;
+ *  - ACTIVATION does not: no path authors an attachment, the project reader and writer, the
+ *    IPC DTO and the save path all still speak v2 only, and a v2 write would silently strip
+ *    the field.
+ *
+ * So admitting 3 here would not claim a missing electrical capability — it would invite a
+ * file this build can compile but cannot load, author or save without losing data. The
+ * constant moves when the whole activation boundary is implemented and validated together,
+ * not when one more layer of it is ready. See BREADBOARD_C5_ROADMAP.md.
  */
 export const SUPPORTED_CIRCUIT_SCHEMA_VERSIONS = [1, 2] as const;
 export const CURRENT_CIRCUIT_SCHEMA_VERSION = 2;

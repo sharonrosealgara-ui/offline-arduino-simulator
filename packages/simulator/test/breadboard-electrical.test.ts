@@ -8,7 +8,9 @@
  * wrong group: two ordinary component terminals, wired into two DIFFERENT holes of one
  * five-hole strip, must come out on one node without any wire joining them directly.
  *
- * Jumper wires only. Nothing here inserts a component lead into a hole — that is C5.
+ * Jumper wires only. Nothing here inserts a component lead into a hole: that belongs to the
+ * breadboard component-attachment roadmap, which is tracked in BREADBOARD_C5_ROADMAP.md and
+ * is unrelated to the `C5` entry in implementation_plan.md.
  */
 import { describe, expect, it } from 'vitest';
 import {

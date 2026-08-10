@@ -470,7 +470,7 @@ describe('38-46: loading and the temporary 3D gate', () => {
     render(<CircuitPane />);
     const reason = screen.getByTestId('viewport-3d-disabled-reason');
     expect(reason.textContent).toBe(BREADBOARD_3D_NOTICE);
-    expect(reason.textContent).toMatch(/next milestone/i);
+    expect(reason.textContent).toMatch(/direct component-lead placement and project persistence/i);
     const threeD = screen.getByRole('tab', { name: /3D Workspace/i });
     expect(threeD.getAttribute('aria-disabled')).toBe('true');
     // The 2D canvas is what actually mounted.

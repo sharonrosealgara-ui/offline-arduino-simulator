@@ -274,7 +274,7 @@ describe('33-42: the application gate is still complete', () => {
     render(<CircuitPane />);
     const tab = screen.getByRole('tab', { name: /3D Workspace/i });
     expect(tab.getAttribute('aria-disabled')).toBe('true');
-    expect(screen.getByTestId('viewport-3d-disabled-reason').textContent).toMatch(/next milestone/i);
+    expect(screen.getByTestId('viewport-3d-disabled-reason').textContent).toMatch(/direct component-lead placement and project persistence/i);
   });
 
   it('still enters 2D atomically when a breadboard project is loaded from 3D', () => {

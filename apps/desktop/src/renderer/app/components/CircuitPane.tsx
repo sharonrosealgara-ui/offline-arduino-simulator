@@ -23,15 +23,21 @@ import { simulationClient } from '../../simulation/simulation-client';
 /**
  * Why 3D can be unavailable.
  *
- * A breadboard has no production 3D geometry yet (C3) and no wire attachment portals (C4).
- * Rendering one would put an invisible, unreachable component into the workspace and feed
- * 400 terminals to a router with no geometry for them, so the 3D view is withheld while a
- * project contains one. Stated on screen rather than in a tooltip: a disabled control with
- * no visible reason reads as a bug.
+ * The geometry and the wire attachment portals now exist (C3, C4), and the compiler
+ * understands a lead plugged into a hole (C5.3). What is still missing is the ability to
+ * CREATE one and to save it: nothing authors an attachment, and the v2 writer would drop the
+ * field. Showing the board in 3D would therefore offer a workspace where a student could see
+ * holes but never fill them, and lose anything they managed to express. Stated on screen
+ * rather than in a tooltip: a disabled control with no visible reason reads as a bug.
+ *
+ * The wording names the two unfinished capabilities instead of promising a milestone. The
+ * previous copy said support arrived "in the next milestone" and stayed on screen across four
+ * of them — a date is a promise the code cannot keep, whereas a dependency is a fact.
  */
 export const BREADBOARD_3D_NOTICE =
   'The 3D Workspace is unavailable while this circuit contains a breadboard. ' +
-  '3D breadboard support arrives in the next milestone. Everything works normally in 2D.';
+  '3D breadboard interaction is currently unavailable until direct component-lead placement ' +
+  'and project persistence are complete. Continue building breadboard circuits in 2D.';
 
 export function CircuitPane(): JSX.Element {
   const mode = useAppStore((s) => s.layout.viewportMode);
