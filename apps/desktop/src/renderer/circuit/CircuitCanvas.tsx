@@ -134,4 +134,3 @@ export function CircuitCanvas(): JSX.Element {
     </svg>
   );
 }
-
