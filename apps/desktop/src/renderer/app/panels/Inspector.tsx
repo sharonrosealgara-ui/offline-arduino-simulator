@@ -11,6 +11,7 @@ import type { CircuitComponent } from '@offline-arduino/contracts/circuit';
 import { catalogEntry, type CatalogProperty } from '../circuit/component-catalog';
 import { useMomentaryControl } from './useMomentaryControl';
 import { formatOhms } from '../circuit/hardware/resistor-bands';
+import { wireRoleLabel } from '../circuit/hardware/wire-colors';
 import { useCircuit, useActions, useSimulation } from '../../state/store';
 
 import { simulationClient } from '../../simulation/simulation-client';
@@ -62,7 +63,7 @@ export function Inspector(): JSX.Element {
                 {wire.to.componentId} · {wire.to.terminalId}
               </dd>
               <dt>Colour</dt>
-              <dd>{wire.colorRole.replace('-', ' ')}</dd>
+              <dd>{wireRoleLabel(wire.colorRole)}</dd>
             </dl>
             <button type="button" className="btn btn--danger btn--block" onClick={() => actions.deleteWires([wire.id])}>
               <Unlink size={14} aria-hidden /> Remove wire

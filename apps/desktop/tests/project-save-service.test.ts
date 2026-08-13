@@ -35,17 +35,23 @@ const { saveProject, saveProjectAs, openProjectDialog } = await import(
   '../src/main/projects/project-service'
 );
 
+/**
+ * A current-format project. Saves emit schemaVersion 2 and `writeProjectFile` validates
+ * against v2 specifically, so a v1 fixture here would be testing a file the app can no
+ * longer produce. Backward compatibility is covered where it belongs — in the schema
+ * migration suite, against real v1 input.
+ */
 function project(name = 'Blink') {
   const now = new Date().toISOString();
   return {
-    schemaVersion: 1 as const,
+    schemaVersion: 2 as const,
     projectId: '11111111-2222-3333-4444-555555555555',
     name,
     createdAt: now,
     updatedAt: now,
     boardId: 'uno' as const,
     sources: { 'Sketch.ino': 'void setup() {}\nvoid loop() {}\n' },
-    circuit: { schemaVersion: 1 as const, components: [], wires: [], junctions: [] },
+    circuit: { schemaVersion: 2 as const, components: [], wires: [], junctions: [] },
   };
 }
 

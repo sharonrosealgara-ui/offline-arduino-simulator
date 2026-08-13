@@ -4,6 +4,7 @@
  * UI_CANVAS_AND_PACKAGING_SPEC.md §4.2.
  */
 import type { CompileRequest } from '@offline-arduino/contracts/compiler';
+import { CURRENT_CIRCUIT_SCHEMA_VERSION } from '@offline-arduino/contracts/circuit';
 import { compileNetlist } from '@offline-arduino/simulator';
 import { useAppStore } from '../state/store';
 import { useCompilerStore } from './state/compiler-store';
@@ -111,7 +112,7 @@ export async function run(): Promise<void> {
   // 3. Validate circuit topology.
   const project = snapshotProject();
   const netlist = compileNetlist({
-    schemaVersion: 1,
+    schemaVersion: CURRENT_CIRCUIT_SCHEMA_VERSION,
     components: state.circuit.components,
     wires: state.circuit.wires,
     junctions: state.circuit.junctions,
@@ -220,6 +221,17 @@ export async function openProject(): Promise<void> {
   if (opened) {
     const { loadProjectIntoStore } = await import('./project-bridge');
     // The path travels with the project: an opened file is on disk by definition.
-    loadProjectIntoStore(opened.project, opened.path);
+    const verdict = loadProjectIntoStore(opened.project, opened.path);
+    if (!verdict.ok) {
+      // Reported where circuit problems already appear, rather than failing silently.
+      useAppStore.getState().actions.setCircuitDiagnostics([
+        {
+          id: 'PROJECT_NOT_SUPPORTED',
+          code: 'PROJECT_NOT_SUPPORTED',
+          severity: 'fatal',
+          message: verdict.reason,
+        },
+      ]);
+    }
   }
 }

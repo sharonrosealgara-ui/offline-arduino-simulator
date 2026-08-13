@@ -17,43 +17,66 @@
  *  `controls.enabled` for the duration and restores it on pointerup (including when the
  *  pointer is released outside the canvas), so the two never fight.
  */
-import { useCallback, useMemo, useRef, useState, useEffect } from 'react';
-import { simulationClient } from '../../simulation/simulation-client';
+import {useCallback, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import {
   getComponentDefinition,
   terminalKey,
 } from '@offline-arduino/simulator/circuit-model/component-registry';
-import type { CircuitComponent, Point, TerminalRef, WireColorRole } from '@offline-arduino/contracts/circuit';
-import type { ComponentDisplayDelta } from '@offline-arduino/contracts/simulator';
+import type {
+  CircuitComponent,
+  ComponentKind,
+  Point,
+  TerminalRef,
+  WireColorRole,
+} from '@offline-arduino/contracts/circuit';
 import { useAppStore, useCircuit } from '../../state/store';
 import { shouldShowTerminals, terminalAnchorAppearance } from './terminal-anchor-style';
-import { createLcdScreenTexture, createTextPlateTexture } from './hardware/labels';
+import { createTextPlateTexture } from './hardware/labels';
 import { useDisposableTexture } from './hardware/useDisposableTexture';
-import { resistorBands, formatOhms } from './hardware/resistor-bands';
+import { formatOhms } from './hardware/resistor-bands';
 import { PCB_TOP, unoPinPosition } from './hardware/uno-geometry';
+import { SCHEMATIC_UNIT_INCHES, mmToWorld } from './hardware/geometry-units';
+import { componentPhysical } from './hardware/component-geometry';
+import {
+  boundsCenter,
+  componentYawRadians,
+  selectionBoundsMm,
+  terminalScenePosition,
+} from './hardware/component-bounds';
+import { Part3D, terminalsOf } from './hardware/parts-3d';
+import { WIRE_SELECTED_HEX, wireRenderHex, type WireRenderContext } from './hardware/wire-colors';
+import {
+  breadboardPlacements,
+  breadboardTerminalPositions,
+  sceneWireClearance,
+  wireApproachExemptions,
+  wirePointsWithPortals,
+} from './hardware/breadboard-scene';
+import { BreadboardNode } from './hardware/BreadboardNode';
+import { buildWireCurve, wireRadius, type WireClearanceContext } from './hardware/wire-path';
+import {
+  BOARD_AT_SCENE_ORIGIN,
+  headerVolumeIdForPin,
+  unoWireClearance,
+  type AttachmentExemption,
+  type UnoPlacement,
+} from './hardware/scene-obstacles';
 
-/** Schematic units → world inches. */
-const SCALE = 0.012;
+/** Schematic units → world inches. One shared constant; see geometry-units.ts. */
+const SCALE = SCHEMATIC_UNIT_INCHES;
 /** Height wires float above the bench. */
 const WIRE_LIFT = 0.14;
 /** Radius of the clickable terminal anchor. */
 const TERMINAL_RADIUS = 0.028;
 
-const SELECTED_COLOR = '#38bdf8';
+const SELECTED_COLOR = WIRE_SELECTED_HEX;
 const HOVER_COLOR = '#7dd3fc';
-const WIRE_PENDING_COLOR = '#facc15';
 
-const WIRE_HEX: Record<WireColorRole, string> = {
-  'vcc-red': '#d1352b',
-  'ground-black': '#1c1f24',
-  'signal-yellow': '#e0b400',
-  'signal-blue': '#2b74d1',
-  'signal-green': '#1f9d55',
-  'signal-orange': '#e07a1f',
-  'signal-purple': '#8a4fd1',
-};
+/** The bench is #171a1f whatever the OS theme is, so this canvas is always the dark context. */
+const WORKSPACE_CONTEXT: WireRenderContext = 'dark';
+const WIRE_PENDING_COLOR = '#facc15';
 
 /** Rotates a terminal's local anchor by the component rotation and offsets by position. */
 function terminal2D(c: CircuitComponent, tx: number, ty: number): Point {
@@ -63,15 +86,19 @@ function terminal2D(c: CircuitComponent, tx: number, ty: number): Point {
   return { x: c.x + tx * cos - ty * sin, y: c.y + tx * sin + ty * cos };
 }
 
-function useComponentDelta(id: string): ComponentDisplayDelta | undefined {
-  return useAppStore((s) => s.simulation.components[id]);
-}
-
 // =======================================================================================
 // Root
 // =======================================================================================
 export interface DynamicNetlist3DProps {
   quality?: 'low' | 'high';
+}
+
+/** One wire's routed geometry inputs, held stable while its routing inputs are unchanged. */
+interface RoutedWire {
+  id: string;
+  role: WireColorRole;
+  points: THREE.Vector3[];
+  clearance: WireClearanceContext;
 }
 
 export function DynamicNetlist3D({ quality = 'high' }: DynamicNetlist3DProps): JSX.Element {
@@ -110,38 +137,128 @@ export function DynamicNetlist3D({ quality = 'high' }: DynamicNetlist3DProps): J
             continue;
           }
         }
+        // Where the wire meets this part's own conductor. Derived from the part, not from
+        // a fixed height: a constant lift left every wire ending 3.56 mm above its lead.
+        const scene = terminalScenePosition(c, t.id, def.terminals, origin);
+        if (scene) {
+          map.set(terminalKey(c.id, t.id), new THREE.Vector3(scene.x, scene.y, scene.z));
+          continue;
+        }
         map.set(terminalKey(c.id, t.id), to3D(terminal2D(c, t.x, t.y), WIRE_LIFT));
       }
     }
     return map;
-  }, [components, to3D]);
+    // `origin` is read directly now that terminal heights come from each part, not only
+    // through to3D — so it has to be declared, or a board moved without any other change
+    // could leave endpoints behind.
+  }, [components, to3D, origin]);
+
+  /** Every breadboard, placed in scene coordinates. Empty for circuits without one. */
+  const breadboards = useMemo(() => breadboardPlacements(components, origin), [components, origin]);
+
+  /**
+   * Hole anchors, merged in alongside ordinary terminals.
+   *
+   * A breadboard hole is an ordinary wire endpoint; the rest of the scene should not have to
+   * know which kind of terminal it is holding.
+   */
+  const allTerminalPos = useMemo(() => {
+    if (breadboards.length === 0) return terminalPos;
+    const merged = new Map(terminalPos);
+    for (const [key, position] of breadboardTerminalPositions(breadboards)) merged.set(key, position);
+    return merged;
+  }, [terminalPos, breadboards]);
+
+  /**
+   * Where the board sits in the scene. The renderer centres the world on the Uno today, so
+   * this resolves to the origin — but it is read from the component rather than assumed, so
+   * a moved or rotated board routes correctly without further work.
+   */
+  const unoPlacement = useMemo<UnoPlacement>(() => {
+    const uno = components.find((c) => c.kind === 'uno-r3');
+    if (!uno) return BOARD_AT_SCENE_ORIGIN;
+    return {
+      x: (uno.x - origin.x) * SCALE,
+      z: (uno.y - origin.y) * SCALE,
+      rotationDegrees: uno.rotation,
+    };
+  }, [components, origin]);
 
   const wiring = pendingWireFrom !== null;
   const selected = useMemo(() => new Set(selectedIds), [selectedIds]);
 
+  /**
+   * Every wire's route and clearance rule, derived once per genuine change.
+   *
+   * This used to be computed inline in the JSX below, which meant `points` and `clearance`
+   * were brand-new objects on every render — `sceneWireClearance` and `wirePointsWithPortals`
+   * both return fresh literals, and `[a, ...mids, b]` is a fresh array. NetWire's `useMemo`
+   * therefore never once hit, and `buildWireCurve` ran again for every wire on every render:
+   * hovering a part, selecting one, or beginning a wire re-sampled 4096 points per clearance
+   * pass, per wire, for routes that had not moved at all.
+   *
+   * The dependencies are exactly the inputs the routing reads, and every one of them is
+   * replaced immutably by the store rather than mutated — `moveComponent` rebuilds the
+   * component array, `selectIds` and `pendingWireFrom` leave `components` and `wires`
+   * untouched. So identity here means "the route could have changed", never "some unrelated
+   * part of the app re-rendered". A move, rotation, wire edit, board placement or waypoint
+   * change still recomputes; nothing else does.
+   */
+  const routedWires = useMemo(
+    () =>
+      wires
+        .map((w) => {
+          const a = allTerminalPos.get(terminalKey(w.from.componentId, w.from.terminalId));
+          const b = allTerminalPos.get(terminalKey(w.to.componentId, w.to.terminalId));
+          if (!a || !b) return null;
+          const mids = w.waypoints.map((wp) => to3D(wp, WIRE_LIFT));
+          // A wire end plugged into a board header legitimately starts inside that connector —
+          // and inside nothing else. Exempt exactly the header holding its own pin.
+          const exemptions: AttachmentExemption[] = [];
+          for (const [end, at] of [
+            [w.from, a],
+            [w.to, b],
+          ] as const) {
+            const component = components.find((c) => c.id === end.componentId);
+            if (component?.kind !== 'uno-r3') continue;
+            const volumeId = headerVolumeIdForPin(end.terminalId);
+            if (volumeId) exemptions.push({ point: at, volumeId });
+          }
+          // anchor -> portal -> global route -> portal -> anchor. An end that is not a hole
+          // contributes its anchor alone, exactly as before.
+          const routed = breadboards.length
+            ? wirePointsWithPortals(w, { from: a, to: b }, mids, breadboards)
+            : [a, ...mids, b];
+          const approach = breadboards.length ? wireApproachExemptions(w, breadboards) : [];
+          return {
+            id: w.id,
+            role: w.colorRole,
+            points: routed,
+            clearance: sceneWireClearance(unoWireClearance(unoPlacement, exemptions), breadboards, approach),
+          };
+        })
+        .filter((r): r is RoutedWire => r !== null),
+    [wires, allTerminalPos, breadboards, unoPlacement, components, to3D],
+  );
+
   return (
     <group name="dynamic-netlist">
-      {wires.map((w) => {
-        const a = terminalPos.get(terminalKey(w.from.componentId, w.from.terminalId));
-        const b = terminalPos.get(terminalKey(w.to.componentId, w.to.terminalId));
-        if (!a || !b) return null;
-        const mids = w.waypoints.map((wp) => to3D(wp, WIRE_LIFT));
-        return (
-          <NetWire
-            key={w.id}
-            id={w.id}
-            points={[a, ...mids, b]}
-            color={selected.has(w.id) ? SELECTED_COLOR : WIRE_HEX[w.colorRole]}
-            selected={selected.has(w.id)}
-            high={high}
-          />
-        );
-      })}
+      {routedWires.map((r) => (
+        <NetWire
+          key={r.id}
+          id={r.id}
+          points={r.points}
+          role={r.role}
+          selected={selected.has(r.id)}
+          high={high}
+          clearance={r.clearance}
+        />
+      ))}
 
       {/* Preview of the wire currently being drawn, anchored to the first terminal. */}
       {pendingWireFrom && (
         <PendingWirePreview
-          anchor={terminalPos.get(terminalKey(pendingWireFrom.componentId, pendingWireFrom.terminalId))}
+          anchor={allTerminalPos.get(terminalKey(pendingWireFrom.componentId, pendingWireFrom.terminalId))}
         />
       )}
 
@@ -152,6 +269,9 @@ export function DynamicNetlist3D({ quality = 'high' }: DynamicNetlist3DProps): J
       {components.map((c) => {
         const def = getComponentDefinition(c.kind);
         if (!def) return null;
+        // A breadboard's 400 holes are picked from its instanced mesh, not from 400 anchor
+        // objects — that is the entire reason the mesh is instanced.
+        if (c.kind === 'breadboard') return null;
         const show = shouldShowTerminals({
           isBoard: c.kind === 'uno-r3',
           wiring,
@@ -179,7 +299,9 @@ export function DynamicNetlist3D({ quality = 'high' }: DynamicNetlist3DProps): J
       })}
 
       {components.map((c) =>
-        c.kind === 'uno-r3' ? null : (
+        c.kind === 'breadboard' ? (
+          <BreadboardNode key={c.id} component={c} origin={origin} selected={selected.has(c.id)} />
+        ) : c.kind === 'uno-r3' ? null : (
           <ComponentNode
             key={c.id}
             component={c}
@@ -201,45 +323,43 @@ export function DynamicNetlist3D({ quality = 'high' }: DynamicNetlist3DProps): J
 function NetWire({
   id,
   points,
-  color,
+  role,
   selected,
   high,
+  clearance,
 }: {
   id: string;
   points: THREE.Vector3[];
-  color: string;
+  role: WireColorRole;
   selected: boolean;
   high: boolean;
+  clearance: WireClearanceContext;
 }): JSX.Element {
-  const curve = useMemo(() => {
-    if (points.length < 2) return null;
-    const dense: THREE.Vector3[] = [];
-    for (let i = 0; i < points.length - 1; i += 1) {
-      const p = points[i];
-      const q = points[i + 1];
-      dense.push(p);
-      const mid = p.clone().add(q).multiplyScalar(0.5);
-      // Slight sag between anchors so wires read as physical jumpers, not laser beams.
-      mid.y -= Math.min(0.45, p.distanceTo(q) * 0.18);
-      dense.push(mid);
-    }
-    dense.push(points[points.length - 1]);
-    return new THREE.CatmullRomCurve3(dense, false, 'catmullrom', 0.5);
-  }, [points]);
+  const curve = useMemo(() => buildWireCurve(points, clearance), [points, clearance]);
+  const [hovered, setHovered] = useState(false);
 
   if (!curve) return <group />;
+
+  // One resolver decides this, so pointer-out lands back on exactly the resting colour
+  // rather than on a separately-written copy of it.
+  const color = wireRenderHex(role, WORKSPACE_CONTEXT, { selected, hovered });
 
   return (
     <mesh
       castShadow={high}
       receiveShadow={high}
+      onPointerOver={(event) => {
+        event.stopPropagation();
+        setHovered(true);
+      }}
+      onPointerOut={() => setHovered(false)}
       onClick={(event) => {
         event.stopPropagation();
         useAppStore.getState().actions.selectIds([id]);
       }}
     >
       {/* Fewer tubular segments in low-spec: a jumper reads fine at 24. */}
-      <tubeGeometry args={[curve, high ? 40 : 20, selected ? 0.026 : 0.02, high ? 8 : 5, false]} />
+      <tubeGeometry args={[curve, high ? 40 : 20, wireRadius(selected), high ? 8 : 5, false]} />
       <meshPhysicalMaterial
         color={color}
         roughness={0.85}
@@ -436,7 +556,7 @@ function ComponentNode({ component, origin, selected, hovered, onHoverChange, hi
     () => [(component.x - origin.x) * SCALE, 0, (component.y - origin.y) * SCALE],
     [component.x, component.y, origin.x, origin.y],
   );
-  const yaw = -(component.rotation * Math.PI) / 180;
+  const yaw = componentYawRadians(component.rotation);
 
   const pointerToWorld = useCallback(
     (event: ThreeEvent<PointerEvent>): THREE.Vector3 | null => {
@@ -522,9 +642,13 @@ function ComponentNode({ component, origin, selected, hovered, onHoverChange, hi
       }}
     >
       {renderKind(component, high)}
-      {(selected || hovered) && <SelectionRing selected={selected} />}
+      {(selected || hovered) && <SelectionRing kind={component.kind} selected={selected} />}
       {(selected || hovered) && (
-        <FloatingLabel text={describe(component)} y={0.42} width={0.92} />
+        <FloatingLabel
+          text={describe(component)}
+          y={labelHeightFor(component.kind)}
+          width={0.92}
+        />
       )}
     </group>
   );
@@ -544,10 +668,32 @@ function describe(c: CircuitComponent): string {
   }
 }
 
-function SelectionRing({ selected }: { selected: boolean }): JSX.Element {
+/**
+ * The footprint outline under a selected or hovered part.
+ *
+ * This was a fixed 0.15-0.19 inch ring for every kind, which is meaningless once parts are
+ * their real size: on an 80 mm LCD it read as a dot near one corner, and inside a servo it
+ * disappeared under the case. It is now derived from the same footprint the wiring uses, so
+ * it frames whatever it is drawn around.
+ */
+/** Label height: above the part, so it never sits across the body or its terminals. */
+function labelHeightFor(kind: ComponentKind): number {
+  const physical = componentPhysical(kind);
+  if (!physical) return 0.42;
+  return mmToWorld(physical.standoff + physical.body.height) + 0.18;
+}
+
+function SelectionRing({ kind, selected }: { kind: ComponentKind; selected: boolean }): JSX.Element {
+  const bounds = selectionBoundsMm(kind, terminalsOf(kind));
+  const center = bounds ? boundsCenter(bounds) : { x: 0, z: 0 };
+  const width = bounds ? mmToWorld(bounds.maxX - bounds.minX) : 0.34;
+  const depth = bounds ? mmToWorld(bounds.maxZ - bounds.minZ) : 0.34;
   return (
-    <mesh position={[0, 0.005, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-      <ringGeometry args={[0.15, 0.19, 32]} />
+    <mesh
+      position={[mmToWorld(center.x), 0.005, mmToWorld(center.z)]}
+      rotation={[-Math.PI / 2, 0, 0]}
+    >
+      <ringGeometry args={[Math.max(width, depth) / 2, Math.max(width, depth) / 2 + 0.04, 48]} />
       <meshBasicMaterial
         color={selected ? SELECTED_COLOR : HOVER_COLOR}
         transparent
@@ -560,368 +706,7 @@ function SelectionRing({ selected }: { selected: boolean }): JSX.Element {
 }
 
 function renderKind(c: CircuitComponent, high: boolean): JSX.Element {
-  switch (c.kind) {
-    case 'led':
-      return <Led3D id={c.id} color={typeof c.properties.color === 'string' ? c.properties.color : 'red'} high={high} />;
-    case 'resistor':
-      return <Resistor3D ohms={Number(c.properties.ohms ?? 220)} high={high} />;
-    case 'potentiometer':
-      return <Potentiometer3D id={c.id} high={high} />;
-    case 'servo':
-      return <Servo3D id={c.id} high={high} />;
-    case 'lcd1602':
-      return <Lcd3D id={c.id} high={high} />;
-    case 'pushbutton':
-      return <Pushbutton3D id={c.id} high={high} />;
-    default:
-      return <UnknownPart />;
-  }
-}
-
-// =======================================================================================
-// Parts
-// =======================================================================================
-const LED_COLOR_HEX: Record<string, string> = {
-  red: '#ff3b30',
-  green: '#34d058',
-  blue: '#3b82f6',
-  yellow: '#fbbf24',
-  white: '#f4f4f5',
-};
-
-/**
- * 5 mm through-hole LED with a real polarity indicator: the flat on the rim and the short
- * lead are both on the cathode side, exactly as on the physical part. Getting this wrong
- * teaches the wrong thing, so both cues are modelled rather than just tinting the dome.
- */
-function Led3D({ id, color, high }: { id: string; color: string; high: boolean }): JSX.Element {
-  const delta = useComponentDelta(id);
-  const brightness = delta?.kind === 'led' ? delta.brightness : 0;
-  const matRef = useRef<THREE.MeshStandardMaterial>(null);
-  const lightRef = useRef<THREE.PointLight>(null);
-  const hex = LED_COLOR_HEX[color] ?? color;
-  const emissive = useMemo(() => new THREE.Color(hex), [hex]);
-
-  useFrame((_, dt) => {
-    if (matRef.current) {
-      matRef.current.emissiveIntensity = THREE.MathUtils.damp(
-        matRef.current.emissiveIntensity,
-        brightness * 3.4,
-        14,
-        dt,
-      );
-    }
-    if (lightRef.current) {
-      lightRef.current.intensity = THREE.MathUtils.damp(lightRef.current.intensity, brightness * 1.4, 14, dt);
-    }
-  });
-
-  return (
-    <group>
-      {/* Dome */}
-      <mesh castShadow={high} position={[0, 0.13, 0]}>
-        <sphereGeometry args={[0.055, high ? 20 : 10, high ? 16 : 8, 0, Math.PI * 2, 0, Math.PI / 2]} />
-        <meshStandardMaterial
-          ref={matRef}
-          color={hex}
-          emissive={emissive}
-          emissiveIntensity={0}
-          roughness={0.16}
-          transparent
-          opacity={0.9}
-        />
-      </mesh>
-      {/* Body */}
-      <mesh castShadow={high} position={[0, 0.085, 0]}>
-        <cylinderGeometry args={[0.055, 0.055, 0.09, high ? 20 : 10]} />
-        <meshStandardMaterial color={hex} roughness={0.2} transparent opacity={0.9} />
-      </mesh>
-      {/* Cathode flat + wider base rim: the two physical polarity cues. */}
-      <mesh position={[0.052, 0.06, 0]}>
-        <boxGeometry args={[0.012, 0.05, 0.08]} />
-        <meshStandardMaterial color="#0f172a" roughness={0.5} transparent opacity={0.55} />
-      </mesh>
-      <mesh position={[0, 0.042, 0]}>
-        <cylinderGeometry args={[0.066, 0.066, 0.012, high ? 20 : 10]} />
-        <meshStandardMaterial color={hex} roughness={0.3} transparent opacity={0.85} />
-      </mesh>
-      {/* Anode lead (long, -x) and cathode lead (short, +x). */}
-      <mesh position={[-0.03, -0.015, 0]}>
-        <cylinderGeometry args={[0.007, 0.007, 0.15, 6]} />
-        <meshStandardMaterial color="#c9ced6" metalness={0.85} roughness={0.28} />
-      </mesh>
-      <mesh position={[0.03, 0.005, 0]}>
-        <cylinderGeometry args={[0.007, 0.007, 0.11, 6]} />
-        <meshStandardMaterial color="#c9ced6" metalness={0.85} roughness={0.28} />
-      </mesh>
-      <pointLight ref={lightRef} color={hex} intensity={0} distance={1.1} decay={2} position={[0, 0.16, 0]} />
-    </group>
-  );
-}
-
-/** Axial resistor whose bands are computed from its actual resistance. */
-function Resistor3D({ ohms, high }: { ohms: number; high: boolean }): JSX.Element {
-  const { colors } = useMemo(() => resistorBands(ohms), [ohms]);
-  // Band positions along the body, first digit nearest the left lead.
-  const bandX = [-0.05, -0.025, 0.0, 0.05];
-
-  return (
-    <group position={[0, 0.06, 0]} rotation={[0, 0, Math.PI / 2]}>
-      <mesh castShadow={high}>
-        <cylinderGeometry args={[0.04, 0.04, 0.17, high ? 16 : 8]} />
-        <meshStandardMaterial color="#d9c08a" roughness={0.62} />
-      </mesh>
-      {colors.map((c, i) => (
-        <mesh key={i} position={[0, bandX[i], 0]}>
-          <cylinderGeometry args={[0.042, 0.042, 0.016, high ? 16 : 8]} />
-          <meshStandardMaterial color={c} roughness={0.5} />
-        </mesh>
-      ))}
-      {/* Axial leads */}
-      <mesh position={[0, 0.13, 0]}>
-        <cylinderGeometry args={[0.007, 0.007, 0.1, 6]} />
-        <meshStandardMaterial color="#c9ced6" metalness={0.85} roughness={0.28} />
-      </mesh>
-      <mesh position={[0, -0.13, 0]}>
-        <cylinderGeometry args={[0.007, 0.007, 0.1, 6]} />
-        <meshStandardMaterial color="#c9ced6" metalness={0.85} roughness={0.28} />
-      </mesh>
-    </group>
-  );
-}
-
-function Potentiometer3D({ id, high }: { id: string; high: boolean }): JSX.Element {
-  const delta = useComponentDelta(id);
-  const value = delta?.kind === 'potentiometer' && typeof delta.value === 'number' ? delta.value : 0.5;
-  const knob = useRef<THREE.Group>(null);
-
-  useFrame((_, dt) => {
-    if (!knob.current) return;
-    const target = THREE.MathUtils.degToRad(-135 + value * 270);
-    knob.current.rotation.y = THREE.MathUtils.damp(knob.current.rotation.y, target, 12, dt);
-  });
-
-  return (
-    <group>
-      <mesh castShadow={high} position={[0, 0.05, 0]}>
-        <boxGeometry args={[0.24, 0.1, 0.24]} />
-        <meshStandardMaterial color="#1f2937" roughness={0.7} />
-      </mesh>
-      <group ref={knob} position={[0, 0.12, 0]}>
-        <mesh castShadow={high}>
-          <cylinderGeometry args={[0.09, 0.09, 0.06, high ? 24 : 10]} />
-          <meshStandardMaterial color="#374151" roughness={0.5} />
-        </mesh>
-        <mesh position={[0, 0.031, 0.06]}>
-          <boxGeometry args={[0.02, 0.01, 0.09]} />
-          <meshStandardMaterial color="#fbbf24" emissive="#fbbf24" emissiveIntensity={0.4} />
-        </mesh>
-      </group>
-      {/* Three leads: A, wiper, B. */}
-      {[-0.08, 0, 0.08].map((x, i) => (
-        <mesh key={i} position={[x, -0.02, 0.1]}>
-          <cylinderGeometry args={[0.007, 0.007, 0.12, 6]} />
-          <meshStandardMaterial color="#c9ced6" metalness={0.85} roughness={0.28} />
-        </mesh>
-      ))}
-    </group>
-  );
-}
-
-function Servo3D({ id, high }: { id: string; high: boolean }): JSX.Element {
-  const delta = useComponentDelta(id);
-  const angle = delta?.kind === 'servo' ? delta.angle : 90;
-  const horn = useRef<THREE.Group>(null);
-
-  useFrame((_, dt) => {
-    if (!horn.current) return;
-    horn.current.rotation.y = THREE.MathUtils.damp(
-      horn.current.rotation.y,
-      THREE.MathUtils.degToRad(angle),
-      10,
-      dt,
-    );
-  });
-
-  return (
-    <group>
-      <mesh castShadow={high} position={[0, 0.1, 0]}>
-        <boxGeometry args={[0.5, 0.2, 0.24]} />
-        <meshStandardMaterial color="#1e3a8a" roughness={0.5} />
-      </mesh>
-      {/* Mounting tabs */}
-      <mesh position={[0, 0.16, 0]}>
-        <boxGeometry args={[0.66, 0.03, 0.2]} />
-        <meshStandardMaterial color="#1e3a8a" roughness={0.55} />
-      </mesh>
-      <group ref={horn} position={[0.16, 0.22, 0]}>
-        <mesh castShadow={high}>
-          <cylinderGeometry args={[0.05, 0.05, 0.06, high ? 16 : 8]} />
-          <meshStandardMaterial color="#e5e7eb" />
-        </mesh>
-        <mesh position={[0.12, 0, 0]}>
-          <boxGeometry args={[0.28, 0.02, 0.04]} />
-          <meshStandardMaterial color="#f3f4f6" />
-        </mesh>
-      </group>
-      {/* Three-wire pigtail stub, in the standard brown/red/orange order. */}
-      {['#5b3a1e', '#d1352b', '#e07a1f'].map((c, i) => (
-        <mesh key={c} position={[-0.27, 0.07 + i * 0.028, 0]} rotation={[0, 0, Math.PI / 2]}>
-          <cylinderGeometry args={[0.012, 0.012, 0.08, 6]} />
-          <meshStandardMaterial color={c} roughness={0.85} />
-        </mesh>
-      ))}
-    </group>
-  );
-}
-
-/**
- * 16x2 HD44780 character LCD.
- *
- * The screen is a canvas texture rather than a drei <Html> overlay: the old Html version
- * put a DOM node in the scene that could not be occluded by geometry, ignored the camera's
- * depth buffer, and re-laid-out every frame.
- */
-function Lcd3D({ id, high }: { id: string; high: boolean }): JSX.Element {
-  const delta = useComponentDelta(id);
-  const rows = delta?.kind === 'lcd1602' ? delta.rows : (['', ''] as [string, string]);
-  const on = delta?.kind === 'lcd1602' ? delta.displayOn : false;
-
-  const screen = useDisposableTexture(
-    () => createLcdScreenTexture([rows[0] ?? '', rows[1] ?? ''], on),
-    [rows[0], rows[1], on],
-  );
-
-  return (
-    <group>
-      {/* PCB */}
-      <mesh castShadow={high} position={[0, 0.04, 0]}>
-        <boxGeometry args={[1.0, 0.05, 0.44]} />
-        <meshStandardMaterial color="#0f5132" roughness={0.6} />
-      </mesh>
-      {/* Metal bezel */}
-      <mesh castShadow={high} position={[0, 0.09, -0.02]}>
-        <boxGeometry args={[0.86, 0.06, 0.32]} />
-        <meshStandardMaterial color="#8f959d" metalness={0.7} roughness={0.4} />
-      </mesh>
-      {/* Viewport */}
-      <mesh position={[0, 0.121, -0.02]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[0.74, 0.24]} />
-        <meshBasicMaterial map={screen} toneMapped={false} />
-      </mesh>
-      {/* 16-pin header along the back edge */}
-      <mesh position={[0, 0.08, 0.2]}>
-        <boxGeometry args={[0.84, 0.05, 0.04]} />
-        <meshStandardMaterial color="#15161a" roughness={0.7} />
-      </mesh>
-    </group>
-  );
-}
-
-function Pushbutton3D({ id, high }: { id: string; high: boolean }): JSX.Element {
-  const delta = useComponentDelta(id);
-  const pressed = delta?.kind === 'pushbutton' && delta.value === true;
-  const cap = useRef<THREE.Mesh>(null);
-  const pointerIdRef = useRef<number | null>(null);
-  const pressedRef = useRef(false);
-
-  useFrame((_, dt) => {
-    if (!cap.current) return;
-    cap.current.position.y = THREE.MathUtils.damp(cap.current.position.y, pressed ? 0.11 : 0.15, 20, dt);
-  });
-
-  // Pointer handlers update the real simulation control through the SimulationClient.
-  const onPointerDown = useCallback((event: ThreeEvent<PointerEvent>) => {
-    event.stopPropagation();
-    // Guard against duplicate down events
-    if (pressedRef.current) return;
-    pressedRef.current = true;
-    try {
-      (event.target as Element | null)?.setPointerCapture?.(event.pointerId);
-    } catch {
-      // ignore environments without pointer capture
-    }
-    pointerIdRef.current = event.pointerId;
-    simulationClient.setControl(id, true);
-  }, [id]);
-
-  const release = useCallback((event?: ThreeEvent<PointerEvent>) => {
-    // Only release once
-    if (!pressedRef.current) return;
-    pressedRef.current = false;
-    try {
-      const pid = (event && typeof (event as any).pointerId === 'number') ? (event as any).pointerId : pointerIdRef.current;
-      if (pid !== null && typeof pid === 'number') {
-        (event?.target as Element | null)?.releasePointerCapture?.(pid);
-      }
-    } catch {}
-    pointerIdRef.current = null;
-    simulationClient.setControl(id, false);
-  }, [id]);
-
-  const onPointerUp = useCallback((event: ThreeEvent<PointerEvent>) => {
-    event.stopPropagation();
-    release(event);
-  }, [release]);
-
-  const onPointerCancel = useCallback((event: ThreeEvent<PointerEvent>) => {
-    event.stopPropagation();
-    release(event);
-  }, [release]);
-
-  const onPointerOut = useCallback((event: ThreeEvent<PointerEvent>) => {
-    // If the pointer leaves while pressed, release so the button cannot stick down.
-    if (pressedRef.current) release(event);
-  }, [release]);
-
-  // Avoid attaching global keyboard handlers that would interfere with editors and forms.
-  // Keyboard accessibility is provided in the Inspector (focusable button). Ensure the
-  // worker control is cleared on unmount/selection change so a stuck press cannot persist.
-  useEffect(() => {
-    return () => {
-      if (pressedRef.current) simulationClient.setControl(id, false);
-    };
-  }, [id]);
-
-  return (
-    <group>
-      <mesh castShadow={high} position={[0, 0.06, 0]}>
-        <boxGeometry args={[0.24, 0.12, 0.24]} />
-        <meshStandardMaterial color="#cbd5e1" roughness={0.6} />
-      </mesh>
-      <mesh
-        ref={cap}
-        castShadow={high}
-        position={[0, 0.15, 0]}
-        onPointerDown={(e) => onPointerDown(e)}
-        onPointerUp={(e) => onPointerUp(e)}
-        onPointerCancel={(e) => onPointerCancel(e)}
-        onPointerOut={(e) => onPointerOut(e)}
->
-        <cylinderGeometry args={[0.06, 0.06, 0.06, high ? 20 : 10]} />
-        <meshStandardMaterial color="#e11d48" roughness={0.4} />
-      </mesh>
-      {/* Four legs, matching the four registry terminals (a1/a2/b1/b2). */}
-      {[
-        [-0.1, -0.1],
-        [0.1, -0.1],
-        [-0.1, 0.1],
-        [0.1, 0.1],
-      ].map(([x, z], i) => (
-        <mesh key={i} position={[x, -0.01, z]}>
-          <cylinderGeometry args={[0.008, 0.008, 0.13, 6]} />
-          <meshStandardMaterial color="#c9ced6" metalness={0.85} roughness={0.28} />
-        </mesh>
-      ))}
-    </group>
-  );
-}
-
-function UnknownPart(): JSX.Element {
-  return (
-    <mesh position={[0, 0.05, 0]}>
-      <boxGeometry args={[0.15, 0.1, 0.15]} />
-      <meshStandardMaterial color="#64748b" wireframe />
-    </mesh>
-  );
+  // Bodies and conductors both live in parts-3d.tsx, drawn from the sourced millimetre
+  // table and the registry's own anchors.
+  return <Part3D component={c} high={high} />;
 }

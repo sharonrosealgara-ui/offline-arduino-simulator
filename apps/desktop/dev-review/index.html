@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Post-C4 routing smoke harness (temporary)</title>
+    <!--
+      Deliberately NOT the application's global.css: that stylesheet declares
+      `html, body, #root { height: 100% }` and a workbench grid this page does not have.
+      Loading it over a foreign DOM is what produced unusable framing in an earlier review.
+    -->
+    <style>
+      html, body { height: 100%; margin: 0; background: #0c0d10; }
+      #review-root { height: 100%; }
+      * { box-sizing: border-box; }
+    </style>
+  </head>
+  <body>
+    <div id="review-root"></div>
+    <script type="module" src="./main.tsx"></script>
+  </body>
+</html>

@@ -3,8 +3,9 @@
  * Keeps the store the single source of truth for serializable project state.
  */
 import type { ProjectFileDTO } from '../../preload/electron-api-types';
-import type { ProjectCircuit } from '@offline-arduino/contracts/circuit';
+import { CURRENT_CIRCUIT_SCHEMA_VERSION, type ProjectCircuit } from '@offline-arduino/contracts/circuit';
 import { useAppStore } from '../state/store';
+import { breadboardCount, canLoadProject, type ProjectLoadVerdict } from './project-load-guard';
 
 const MAIN_SOURCE = 'Sketch.ino';
 
@@ -18,9 +19,21 @@ const MAIN_SOURCE = 'Sketch.ino';
  * project's path in place would make an unsaved example claim to be "Saved" at the path of
  * whatever was open before it.
  */
-export function loadProjectIntoStore(project: ProjectFileDTO, sourcePath: string | null = null): void {
+export function loadProjectIntoStore(
+  project: ProjectFileDTO,
+  sourcePath: string | null = null,
+): ProjectLoadVerdict & { switchedTo2D?: boolean } {
+  // Checked before the first setState, so a refused project leaves the workspace exactly as
+  // it was — no components, no sketch, no half-replaced document.
+  const verdict = canLoadProject(project);
+  if (!verdict.ok) return verdict;
+
+  // A breadboard has no 3D geometry yet, so a project containing one goes into 2D. Decided
+  // here, before the project is applied, so it is never transiently rendered in 3D.
+  const breadboards = breadboardCount(project);
+
   const sketch = project.sources[MAIN_SOURCE] ?? Object.values(project.sources)[0] ?? '';
-  const circuit = (project.circuit as ProjectCircuit) ?? { schemaVersion: 1, components: [], wires: [], junctions: [] };
+  const circuit = (project.circuit as ProjectCircuit) ?? { schemaVersion: CURRENT_CIRCUIT_SCHEMA_VERSION, components: [], wires: [], junctions: [] };
 
   useAppStore.setState((state) => ({
     project: {
@@ -43,14 +56,17 @@ export function loadProjectIntoStore(project: ProjectFileDTO, sourcePath: string
     // Opening a project starts a fresh document; undo must not step back into the
     // previous project's topology.
     history: { past: [], future: [] },
+    layout: breadboards > 0 ? { ...state.layout, viewportMode: '2d' as const } : state.layout,
   }));
+
+  return { ok: true, switchedTo2D: breadboards > 0 };
 }
 
 export function snapshotProject(): ProjectFileDTO {
   const state = useAppStore.getState();
   const now = new Date().toISOString();
   return {
-    schemaVersion: 1,
+    schemaVersion: CURRENT_CIRCUIT_SCHEMA_VERSION,
     projectId: state.project.projectId === 'draft' ? crypto.randomUUID() : state.project.projectId,
     name: state.project.name,
     createdAt: now,
@@ -58,7 +74,7 @@ export function snapshotProject(): ProjectFileDTO {
     boardId: 'uno',
     sources: { [MAIN_SOURCE]: state.project.sketch },
     circuit: {
-      schemaVersion: 1,
+      schemaVersion: CURRENT_CIRCUIT_SCHEMA_VERSION,
       components: state.circuit.components,
       wires: state.circuit.wires,
       junctions: state.circuit.junctions,

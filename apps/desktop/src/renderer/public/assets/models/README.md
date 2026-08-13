@@ -1,17 +1,20 @@
 # 3D Model Assets (offline-bundled)
 
-This directory holds optional GLTF/GLB models for the 3D circuit canvas:
+**This directory contains no assets, and that is the shipped state.** Every 3D object in the
+circuit workspace — the Uno R3 board, the LED, resistor, pushbutton, potentiometer, jumper
+wires, the 16×2 LCD and the servo — is built at runtime from three.js primitive geometry in
+TypeScript. There are no `.glb` files, no textures, and no binary assets of any kind.
 
-- `arduino_uno.glb` — Arduino Uno R3 board
-- `breadboard.glb` — half-size breadboard
-- `led.glb` — 5 mm LED
+An earlier version of this file listed `arduino_uno.glb`, `breadboard.glb` and `led.glb` as
+though this directory held them. It did not, and no breadboard has ever been rendered by
+this application. The list is removed rather than left to imply assets that do not exist.
 
-## Fallback policy
+## If GLTF/GLB models are ever added
 
-The renderer NEVER fetches models from a CDN. If a `.glb` file listed above is
-absent, `CircuitCanvas3D.tsx` renders a **procedural primitive fallback** built
-entirely from three.js geometry (BoxGeometry / CylinderGeometry / SphereGeometry),
-so the 3D view always works fully offline with zero network requests.
+The renderer NEVER fetches models from a CDN or any other network location. Should audited
+`.glb` files be placed here in future they would be bundled by Vite and served from the
+local dev server or the packaged app resources only, and the procedural geometry would stay
+as the fallback so the 3D view keeps working with zero network requests.
 
-To upgrade visuals, drop audited `.glb` files here; they are bundled by Vite and
-served from the local dev server / packaged app resources only.
+Any such file would need its licence and attribution verified and recorded in
+`vendor/licenses/app-3d-assets/NOTICE.md` before being committed.

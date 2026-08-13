@@ -9,7 +9,8 @@ import type { CompileRequest, CompileResult } from '@offline-arduino/contracts/c
 import type { OfflineInstallGuide } from '@offline-arduino/contracts/help';
 
 export interface ProjectFileDTO {
-  schemaVersion: 1;
+  /** 1 for legacy files, 2 for current. Main migrates v1 on read; the renderer emits v2. */
+  schemaVersion: 1 | 2;
   projectId: string;
   name: string;
   createdAt: string;
